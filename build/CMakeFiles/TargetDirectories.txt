@@ -1,3 +1,0 @@
-/home/yiboy/Desktop/cpp_project-yibo_yuan/build/CMakeFiles/perlin_noise_visualization.dir
-/home/yiboy/Desktop/cpp_project-yibo_yuan/build/CMakeFiles/edit_cache.dir
-/home/yiboy/Desktop/cpp_project-yibo_yuan/build/CMakeFiles/rebuild_cache.dir

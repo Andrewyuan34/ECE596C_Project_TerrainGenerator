@@ -1,1 +1,0 @@
-/home/frodo/public/ugls_lab-10.4.2/bin/c++  -g -rdynamic CMakeFiles/perlin_noise_visualization.dir/main4.cpp.o CMakeFiles/perlin_noise_visualization.dir/PerlinNoise.cpp.o -o perlin_noise_visualization  -lGL -lGLU -lGL -lGLU -lglut
