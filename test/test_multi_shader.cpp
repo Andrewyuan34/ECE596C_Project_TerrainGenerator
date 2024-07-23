@@ -12,10 +12,14 @@ GLuint shaderProgram1;
 GLuint VBO, VAO, EBO, texture1, texture2, texture3;
 std::vector<GLfloat> vertices;
 std::vector<GLuint> indices;
-PerlinNoise perlinNoise(42, 4);
+PerlinNoise perlinNoise(8, 4);
 
 float cameraDistance = 40.0f;
 float waterLevel = -5.0f; // 设置水平线高度
+
+const int WIDTH = 2048;
+const int HEIGHT = 2048;
+const int step = 64;
 
 void init() {
     if (glewInit() != GLEW_OK) {
@@ -39,24 +43,68 @@ void init() {
     const int HEIGHT = 2048;
     const int step = 64;
 
+    std::vector<float> height_map(WIDTH * HEIGHT);
+    int i = 0;
+
+    // 生成地形顶点数据和索引
     for (int z = -HEIGHT / 2; z < HEIGHT / 2; z += step) {
         for (int x = -WIDTH / 2; x < WIDTH / 2; x += step) {
             float nx = static_cast<float>(x) / WIDTH;
             float ny = static_cast<float>(z) / HEIGHT;
             float height = perlinNoise.generateNoise(nx, ny, 0.5, 1.0, 1.5, 4.0);
-            vertices.push_back(x * 0.1f); // Scale width
-            vertices.push_back(height * WIDTH / 30.0f); // Scale height
-            vertices.push_back(z * 0.1f); // Scale depth
+            float scaledHeight = height * WIDTH / 30.0f;
+            vertices.push_back(x * 0.1f); // 宽度缩放
+            vertices.push_back(scaledHeight); // 高度缩放
+            vertices.push_back(z * 0.1f); // 深度缩放
+            height_map[i++] = scaledHeight;
 
             // 添加纹理坐标
             vertices.push_back((static_cast<float>(x) + WIDTH / 2) / WIDTH);
             vertices.push_back((static_cast<float>(z) + HEIGHT / 2) / HEIGHT);
+
+            // 添加地形高度（此时设置为0, 水面部分会在之后更新）
+            vertices.push_back(0.0f);
         }
     }
 
+    i = 0;
+
+    // 生成水面平面的顶点数据和索引
+    for (int z = -HEIGHT / 2; z < HEIGHT / 2; z += step) {
+        for (int x = -WIDTH / 2; x < WIDTH / 2; x += step) {
+            vertices.push_back(x * 0.1f); // 宽度缩放
+            vertices.push_back(waterLevel); // 固定高度为水平面
+            vertices.push_back(z * 0.1f); // 深度缩放
+
+            // 添加纹理坐标
+            vertices.push_back((static_cast<float>(x) + WIDTH / 2) / WIDTH);
+            vertices.push_back((static_cast<float>(z) + HEIGHT / 2) / HEIGHT);
+
+            // 添加地形高度，用于判断是否显示水面
+            vertices.push_back(height_map[i++]);
+            std::cout << (height_map[i]) << std::endl;
+        }
+    }
+
+
+    // 生成地形索引数据
     for (int y = 0; y < HEIGHT / step - 1; ++y) {
         for (int x = 0; x < WIDTH / step - 1; ++x) {
             int start = y * (WIDTH / step) + x;
+            indices.push_back(start);
+            indices.push_back(start + 1);
+            indices.push_back(start + WIDTH / step + 1);
+            indices.push_back(start + WIDTH / step + 1);
+            indices.push_back(start + WIDTH / step);
+            indices.push_back(start);
+        }
+    }
+
+    // 生成水面索引数据
+    int waterOffset = (HEIGHT / step) * (WIDTH / step);
+    for (int y = 0; y < HEIGHT / step - 1; ++y) {
+        for (int x = 0; x < WIDTH / step - 1; ++x) {
+            int start = waterOffset + y * (WIDTH / step) + x;
             indices.push_back(start);
             indices.push_back(start + 1);
             indices.push_back(start + WIDTH / step + 1);
@@ -80,17 +128,23 @@ void init() {
 
     GLint posAttrib = glGetAttribLocation(shaderProgram1, "aPos");
     GL_CHECK(glEnableVertexAttribArray(posAttrib));
-    GL_CHECK(glVertexAttribPointer(posAttrib, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)0));
+    GL_CHECK(glVertexAttribPointer(posAttrib, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)0));
 
     GLint texCoordAttrib = glGetAttribLocation(shaderProgram1, "aTexCoord");
     GL_CHECK(glEnableVertexAttribArray(texCoordAttrib));
-    GL_CHECK(glVertexAttribPointer(texCoordAttrib, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat))));
+    GL_CHECK(glVertexAttribPointer(texCoordAttrib, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat))));
+
+    GLint heightAttrib = glGetAttribLocation(shaderProgram1, "aHeight");
+    GL_CHECK(glEnableVertexAttribArray(heightAttrib));
+    GL_CHECK(glVertexAttribPointer(heightAttrib, 1, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)(5 * sizeof(GLfloat))));
 
     GL_CHECK(glBindVertexArray(0));
+
     // 启用混合模式
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
+
 
 void convertMatrix(GLdouble* source, GLfloat* dest) {
     for (int i = 0; i < 16; ++i) {
@@ -127,28 +181,38 @@ void display() {
     glUniformMatrix4fv(projLoc, 1, GL_FALSE, projectionMatrix);
     GLint viewLoc = glGetUniformLocation(shaderProgram1, "viewMatrix");
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, viewMatrix);
-
+    
     // 传递水的高度
     GLint waterLevelLoc = glGetUniformLocation(shaderProgram1, "waterLevel");
     glUniform1f(waterLevelLoc, waterLevel);
 
-    // 绑定纹理和VAO并绘制
+    // 绘制地形
+    GLint useWaterTextureLoc = glGetUniformLocation(shaderProgram1, "useWaterTexture");
+    glUniform1i(useWaterTextureLoc, GL_FALSE); // 禁用水纹理
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture1);
     glUniform1i(glGetUniformLocation(shaderProgram1, "texture1"), 0);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, texture2);
     glUniform1i(glGetUniformLocation(shaderProgram1, "texture2"), 1);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, texture3);
-    glUniform1i(glGetUniformLocation(shaderProgram1, "texture3"), 2);
 
     GL_CHECK(glBindVertexArray(VAO));
-    GL_CHECK(glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0));
+    GL_CHECK(glDrawElements(GL_TRIANGLES, (HEIGHT / step - 1) * (WIDTH / step - 1) * 6, GL_UNSIGNED_INT, 0));
+    GL_CHECK(glBindVertexArray(0));
+
+    // 绘制水面
+    glUniform1i(useWaterTextureLoc, GL_TRUE); // 启用水纹理（尽管不使用纹理，我们仍然使用这个标志来控制渲染）
+
+    GL_CHECK(glBindVertexArray(VAO));
+    GL_CHECK(glDrawElements(GL_TRIANGLES, (HEIGHT / step - 1) * (WIDTH / step - 1) * 6, GL_UNSIGNED_INT, (GLvoid*)((HEIGHT / step - 1) * (WIDTH / step - 1) * 6 * sizeof(GLuint))));
     GL_CHECK(glBindVertexArray(0));
 
     glutSwapBuffers();
 }
+
+
+
 
 void cleanup() {
     deleteShaderProgram(shaderProgram1);
