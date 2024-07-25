@@ -8,18 +8,23 @@
 #include "../PerlinNoise.cpp"
 #include "../camera.hpp"
 
+//找到高度的最大值和最小值
+//然后筛选出边界的顶点
+//但问题在于EBO不一样了，这个怎么解决？
+
+
 GLuint shaderProgram1;
 GLuint VBO, VAO, EBO, texture1, texture2, texture3;
 std::vector<GLfloat> vertices;
 std::vector<GLuint> indices;
-PerlinNoise perlinNoise(8, 4);
+PerlinNoise perlinNoise(14, 4);
 
-float cameraDistance = 40.0f;
+float cameraDistance = 100.0f;
 float waterLevel = -5.0f; // 设置水平线高度
 
-const int WIDTH = 2048;
-const int HEIGHT = 2048;
-const int step = 64;
+const int WIDTH = 1024;
+const int HEIGHT = WIDTH;
+const int step = WIDTH / 32;
 
 void init() {
     if (glewInit() != GLEW_OK) {
@@ -39,24 +44,30 @@ void init() {
     texture2 = loadTexture("Texture/sand.bmp");
     texture3 = loadTexture("Texture/water.bmp");
 
-    const int WIDTH = 2048;
-    const int HEIGHT = 2048;
-    const int step = 64;
+
 
     std::vector<float> height_map(WIDTH * HEIGHT);
     int i = 0;
+    float minHeight = 0.0f;
+    float maxHeight = 0.0f;
 
     // 生成地形顶点数据和索引
     for (int z = -HEIGHT / 2; z < HEIGHT / 2; z += step) {
         for (int x = -WIDTH / 2; x < WIDTH / 2; x += step) {
             float nx = static_cast<float>(x) / WIDTH;
             float ny = static_cast<float>(z) / HEIGHT;
-            float height = perlinNoise.generateNoise(nx, ny, 0.5, 1.0, 1.5, 4.0);
-            float scaledHeight = height * WIDTH / 30.0f;
+            float height = perlinNoise.generateNoise(nx, ny, 0.5, 1.0, 1.5, 4.0) + 1.5;
+            if(height < 0.0f) std::cout << "height: " << height << std::endl;
+            //std:: cout << "height: " << height << std::endl;
+            // 调整噪声值，确保边界高度大于水面高度
+            height = perlinNoise.adjustNoiseForTerrainShape(height, x * 0.1f, z * 0.1f, WIDTH * 0.1f, HEIGHT * 0.1f, waterLevel);
+            //std:: cout << "adjusted_height: " << height << std::endl;
+            float scaledHeight = height * WIDTH / 60.0f;
             vertices.push_back(x * 0.1f); // 宽度缩放
             vertices.push_back(scaledHeight); // 高度缩放
             vertices.push_back(z * 0.1f); // 深度缩放
             height_map[i++] = scaledHeight;
+            //std::cout << waterLevel - scaledHeight << std::endl;
 
             // 添加纹理坐标
             vertices.push_back((static_cast<float>(x) + WIDTH / 2) / WIDTH);
@@ -64,8 +75,13 @@ void init() {
 
             // 添加地形高度（此时设置为0, 水面部分会在之后更新）
             vertices.push_back(0.0f);
+
+            // 更新最小值和最大值
+            if (height < minHeight) minHeight = height;
+            if (height > maxHeight) maxHeight = height;
         }
     }
+    std::cout << "minHeight: " << minHeight << "maxHeight: " << maxHeight << std::endl;
 
     i = 0;
 
@@ -82,7 +98,6 @@ void init() {
 
             // 添加地形高度，用于判断是否显示水面
             vertices.push_back(height_map[i++]);
-            std::cout << (height_map[i]) << std::endl;
         }
     }
 
@@ -140,6 +155,10 @@ void init() {
 
     GL_CHECK(glBindVertexArray(0));
 
+    // 启用深度测试
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+
     // 启用混合模式
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -158,7 +177,7 @@ void display() {
     // 设置投影矩阵
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(45.0f, 800.0f / 600.0f, 5.0f, 1000.0f);
+    gluPerspective(45.0f, 800.0f / 600.0f, 10.0f, 1000.0f);
     GLdouble projectionMatrixD[16];
     glGetDoublev(GL_PROJECTION_MATRIX, projectionMatrixD);
     GLfloat projectionMatrix[16];

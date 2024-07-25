@@ -7,12 +7,12 @@ uniform float waterLevel;   // 水平线高度
 uniform bool useWaterTexture; // 是否使用水纹理
 
 void main() {
-    vec4 color1 = texture2D(texture2, TexCoord);
-    vec4 color2 = texture2D(texture1, TexCoord);
+    vec4 color1 = texture2D(texture1, TexCoord);
+    vec4 color2 = texture2D(texture2, TexCoord);
 
     vec4 terrainColor;
-    float factor = clamp((TerrainHeight - 3.0) / 10.0, 0.0, 1.0);
-    terrainColor = mix(color1, color2, factor);
+    float factor = clamp((TerrainHeight - 5.0) / 10.0, 0.0, 1.0); //genType clamp(genType x, genType minVal, genType maxVal); 大于最大则返回最大，小于最小则返回最小，其余返回自身
+    terrainColor = mix(color1, color2, factor); //genType mix(genType x, genType y, genType a);
 
     if (useWaterTexture) {
         if (TerrainHeight < waterLevel) {
@@ -24,8 +24,6 @@ void main() {
 
         } else {
             discard;
-            gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-
         }
     } else {
         gl_FragColor = terrainColor;
