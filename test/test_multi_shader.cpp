@@ -44,7 +44,10 @@ void init() {
     texture2 = loadTexture("Texture/sand.bmp");
     texture3 = loadTexture("Texture/water.bmp");
 
-
+    // 设置环境光颜色和强度
+    glUseProgram(shaderProgram1);
+    GLint ambientLightLoc = glGetUniformLocation(shaderProgram1, "ambientLight");
+    glUniform3f(ambientLightLoc, 0.3f, 0.3f, 0.3f); // 这里设置环境光为灰色，强度为 0.3
 
     std::vector<float> height_map(WIDTH * HEIGHT);
     int i = 0;
@@ -200,7 +203,7 @@ void display() {
     glUniformMatrix4fv(projLoc, 1, GL_FALSE, projectionMatrix);
     GLint viewLoc = glGetUniformLocation(shaderProgram1, "viewMatrix");
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, viewMatrix);
-    
+
     // 传递水的高度
     GLint waterLevelLoc = glGetUniformLocation(shaderProgram1, "waterLevel");
     glUniform1f(waterLevelLoc, waterLevel);
@@ -229,6 +232,7 @@ void display() {
 
     glutSwapBuffers();
 }
+
 
 
 
