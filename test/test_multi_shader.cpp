@@ -7,6 +7,7 @@
 #include "../shader.hpp"
 #include "../PerlinNoise.cpp"
 #include "../camera.hpp"
+#include "../command_line_parser.hpp"
 
 //找到高度的最大值和最小值
 //然后筛选出边界的顶点
@@ -22,11 +23,14 @@ PerlinNoise perlinNoise(14, 4);
 float cameraDistance = 100.0f;
 float waterLevel = -5.0f; // 设置水平线高度
 
-const int WIDTH = 1024;
+const int WIDTH = 4096;
 const int HEIGHT = WIDTH;
 const int step = WIDTH / 32;
 
-void init() {
+Camera camera({0, 0, 100});
+
+
+void init(double frequency, int octave, double amplitude, double persistence, double lacunarity) {
     if (glewInit() != GLEW_OK) {
         std::cerr << "Failed to initialize GLEW" << std::endl;
         return;
@@ -47,7 +51,7 @@ void init() {
     // 设置环境光颜色和强度
     glUseProgram(shaderProgram1);
     GLint ambientLightLoc = glGetUniformLocation(shaderProgram1, "ambientLight");
-    glUniform3f(ambientLightLoc, 0.3f, 0.3f, 0.3f); // 这里设置环境光为灰色，强度为 0.3
+    glUniform3f(ambientLightLoc, 1.0f, 1.0f, 1.0f); // 这里设置环境光为灰色，强度为 0.3
 
     std::vector<float> height_map(WIDTH * HEIGHT);
     int i = 0;
@@ -59,18 +63,14 @@ void init() {
         for (int x = -WIDTH / 2; x < WIDTH / 2; x += step) {
             float nx = static_cast<float>(x) / WIDTH;
             float ny = static_cast<float>(z) / HEIGHT;
-            float height = perlinNoise.generateNoise(nx, ny, 0.5, 1.0, 1.5, 4.0) + 1.5;
+            float height = perlinNoise.generateNoise(nx, ny, 0.5, frequency, amplitude, octave, persistence, lacunarity) + 1.5;
             if(height < 0.0f) std::cout << "height: " << height << std::endl;
-            //std:: cout << "height: " << height << std::endl;
-            // 调整噪声值，确保边界高度大于水面高度
             height = perlinNoise.adjustNoiseForTerrainShape(height, x * 0.1f, z * 0.1f, WIDTH * 0.1f, HEIGHT * 0.1f, waterLevel);
-            //std:: cout << "adjusted_height: " << height << std::endl;
             float scaledHeight = height * WIDTH / 60.0f;
             vertices.push_back(x * 0.1f); // 宽度缩放
             vertices.push_back(scaledHeight); // 高度缩放
             vertices.push_back(z * 0.1f); // 深度缩放
             height_map[i++] = scaledHeight;
-            //std::cout << waterLevel - scaledHeight << std::endl;
 
             // 添加纹理坐标
             vertices.push_back((static_cast<float>(x) + WIDTH / 2) / WIDTH);
@@ -103,7 +103,6 @@ void init() {
             vertices.push_back(height_map[i++]);
         }
     }
-
 
     // 生成地形索引数据
     for (int y = 0; y < HEIGHT / step - 1; ++y) {
@@ -189,9 +188,10 @@ void display() {
     // 设置视图矩阵
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    gluLookAt(cameraDistance, cameraDistance, cameraDistance,  // 摄像机位置 (x, y, z)
-              0.0f, 0.0f, 0.0f,  // 目标位置 (x, y, z)
+    gluLookAt(camera.getCameraPos().x, camera.getCameraPos().y, camera.getCameraPos().z,  // 摄像机位置 (x, y, z)
+                camera.getCameraPos().x + camera.getCameraFront().x, camera.getCameraPos().y + camera.getCameraFront().y, camera.getCameraPos().z + camera.getCameraFront().z,  // 目标位置 (x, y, z)
               0.0f, 1.0f, 0.0f); // 上向量 (x, y, z)
+
     GLdouble viewMatrixD[16];
     glGetDoublev(GL_MODELVIEW_MATRIX, viewMatrixD);
     GLfloat viewMatrix[16];
@@ -247,7 +247,7 @@ void cleanup() {
     glDeleteTextures(1, &texture3);
 }
 
-void keyboard(unsigned char key, int x, int y) {
+/*void keyboard(unsigned char key, int x, int y) {
     switch (key) {
         case 'w': // 放大视角
             cameraDistance -= 1.0f;
@@ -258,9 +258,37 @@ void keyboard(unsigned char key, int x, int y) {
             glutPostRedisplay();
             break;
     }
+}*/
+
+void keyboard(unsigned char key, int x, int y) {
+    camera.keyboard(key, x, y);
+}
+
+void mouse(int button, int state, int x, int y) {
+    camera.mouse(button, state, x, y);
+}
+
+void mouseMotion(int x, int y) {
+    camera.mouseMotion(x, y);
 }
 
 int main(int argc, char** argv) {
+    // 使用CommandLineParser解析命令行参数
+    CommandLineParser parser;
+    try {
+        parser.parse(argc, argv);
+    } catch (const std::runtime_error& e) {
+        return 1;
+    }
+
+    // 设置解析的参数
+    double frequency = parser.getFrequency();
+    int octave = parser.getOctave();
+    double amplitude = parser.getAmplitude();
+    double persistence = parser.getPersistence();
+    double lacunarity = parser.getLacunarity();
+    waterLevel = amplitude; // 假设水面高度用的是amplitude参数
+
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(800, 600);
@@ -268,9 +296,11 @@ int main(int argc, char** argv) {
 
     glutDisplayFunc(display);
     glutKeyboardFunc(keyboard); // 注册键盘回调函数
+    glutMouseFunc(mouse);
+    glutMotionFunc(mouseMotion);
     atexit(cleanup);
 
-    init();
+    init(frequency, octave, amplitude, persistence, lacunarity);
     glutMainLoop();
     return 0;
 }
