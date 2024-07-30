@@ -29,6 +29,28 @@ const int step = WIDTH / 32;
 
 Camera camera({0, 0, 100});
 
+// FPS 相关变量
+int frameCount = 0;
+double fps = 0.0;
+std::chrono::time_point<std::chrono::high_resolution_clock> lastTime;
+
+// 网格显示控制变量
+bool showWireframe = false;
+
+void updateFPS() {
+    frameCount++;
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsedTime = currentTime - lastTime;
+
+    if (elapsedTime.count() >= 1.0) {
+        fps = frameCount / elapsedTime.count();
+        frameCount = 0;
+        lastTime = currentTime;
+
+        std::string title = "OpenGL Multiple Textures Example - FPS: " + std::to_string(fps);
+        glutSetWindowTitle(title.c_str());
+    }
+}
 
 void init(double frequency, int octave, double amplitude, double persistence, double lacunarity) {
     if (glewInit() != GLEW_OK) {
@@ -55,17 +77,23 @@ void init(double frequency, int octave, double amplitude, double persistence, do
 
     std::vector<float> height_map(WIDTH * HEIGHT);
     int i = 0;
-    float minHeight = 0.0f;
-    float maxHeight = 0.0f;
-
+    int j = 0;
+    float minHeight = std::numeric_limits<float>::max();
+    float maxHeight = std::numeric_limits<float>::min();
     // 生成地形顶点数据和索引
+
+/*
+    //这里的逻辑应该是先把顶点的高度按照原有的xz给计算好，之后对边缘进行处理，最后载入到vertices中
     for (int z = -HEIGHT / 2; z < HEIGHT / 2; z += step) {
         for (int x = -WIDTH / 2; x < WIDTH / 2; x += step) {
             float nx = static_cast<float>(x) / WIDTH;
             float ny = static_cast<float>(z) / HEIGHT;
+            //std::cout << "x: " << x << " z: " << z << std::endl;
             float height = perlinNoise.generateNoise(nx, ny, 0.5, frequency, amplitude, octave, persistence, lacunarity) + 1.5;
-            if(height < 0.0f) std::cout << "height: " << height << std::endl;
-            height = perlinNoise.adjustNoiseForTerrainShape(height, x * 0.1f, z * 0.1f, WIDTH * 0.1f, HEIGHT * 0.1f, waterLevel);
+            if (height < minHeight) minHeight = height;
+            if (height > maxHeight) maxHeight = height;
+            //if(height < 0.0f) std::cout << "height: " << height << std::endl;
+            height = perlinNoise.adjustNoiseForTerrainShape(height, x, z, WIDTH, HEIGHT, step, 1.3);
             float scaledHeight = height * WIDTH / 60.0f;
             vertices.push_back(x * 0.1f); // 宽度缩放
             vertices.push_back(scaledHeight); // 高度缩放
@@ -80,14 +108,49 @@ void init(double frequency, int octave, double amplitude, double persistence, do
             vertices.push_back(0.0f);
 
             // 更新最小值和最大值
+
+        }
+    }
+    std::cout << "minHeight: " << minHeight << " maxHeight: " << maxHeight << std::endl;
+    waterLevel = ((maxHeight - minHeight) * 0.3f + minHeight) * WIDTH / 60.0f; // 设置水面高度为地形高度的 30%
+    std::cout << "waterLevel: " << waterLevel << std::endl;
+    i = 0;*/
+
+    std::vector<float> height_array;
+    height_array.reserve(WIDTH * HEIGHT);
+    //这里的逻辑应该是先把顶点的高度按照原有的xz给计算好，之后对边缘进行处理，最后载入到vertices中
+    for (int z = -HEIGHT / 2; z < HEIGHT / 2; z += step) {
+        for (int x = -WIDTH / 2; x < WIDTH / 2; x += step) {
+            float nx = static_cast<float>(x) / WIDTH;
+            float ny = static_cast<float>(z) / HEIGHT;
+            float height = perlinNoise.generateNoise(nx, ny, 0.5, frequency, amplitude, octave, persistence, lacunarity) + 1.5;
+            height_array.push_back(height);
             if (height < minHeight) minHeight = height;
             if (height > maxHeight) maxHeight = height;
         }
     }
-    std::cout << "minHeight: " << minHeight << "maxHeight: " << maxHeight << std::endl;
-
+    waterLevel = ((maxHeight - minHeight) * 0.3f + minHeight); // 设置水面高度为地形高度的 30%
     i = 0;
+    for (int z = -HEIGHT / 2; z < HEIGHT / 2; z += step) {
+        for (int x = -WIDTH / 2; x < WIDTH / 2; x += step) {
+            height_array[i] = perlinNoise.adjustNoiseForTerrainShape(height_array[i], x, z, WIDTH, HEIGHT, step, waterLevel);
+            float scaledHeight = height_array[i] * WIDTH / 60.0f;
+            vertices.push_back(x * 0.1f); // 宽度缩放
+            vertices.push_back(scaledHeight); // 高度缩放
+            vertices.push_back(z * 0.1f); // 深度缩放
+            i++;
+            height_map[j++] = scaledHeight;
+            // 添加纹理坐标
+            vertices.push_back((static_cast<float>(x) + WIDTH / 2) / WIDTH);
+            vertices.push_back((static_cast<float>(z) + HEIGHT / 2) / HEIGHT);
 
+            // 添加地形高度（此时设置为0, 水面部分会在之后更新）
+            vertices.push_back(0.0f);
+        }
+    }
+
+    j = 0;
+    waterLevel = waterLevel * WIDTH / 60.0f;
     // 生成水面平面的顶点数据和索引
     for (int z = -HEIGHT / 2; z < HEIGHT / 2; z += step) {
         for (int x = -WIDTH / 2; x < WIDTH / 2; x += step) {
@@ -100,7 +163,7 @@ void init(double frequency, int octave, double amplitude, double persistence, do
             vertices.push_back((static_cast<float>(z) + HEIGHT / 2) / HEIGHT);
 
             // 添加地形高度，用于判断是否显示水面
-            vertices.push_back(height_map[i++]);
+            vertices.push_back(height_map[j++]);
         }
     }
 
@@ -164,6 +227,9 @@ void init(double frequency, int octave, double amplitude, double persistence, do
     // 启用混合模式
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        // 初始化 FPS 计时器
+    lastTime = std::chrono::high_resolution_clock::now();
 }
 
 
@@ -219,6 +285,13 @@ void display() {
     glBindTexture(GL_TEXTURE_2D, texture2);
     glUniform1i(glGetUniformLocation(shaderProgram1, "texture2"), 1);
 
+    // 根据 showWireframe 变量设置绘制模式
+    if (showWireframe) {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    } else {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
+
     GL_CHECK(glBindVertexArray(VAO));
     GL_CHECK(glDrawElements(GL_TRIANGLES, (HEIGHT / step - 1) * (WIDTH / step - 1) * 6, GL_UNSIGNED_INT, 0));
     GL_CHECK(glBindVertexArray(0));
@@ -229,8 +302,10 @@ void display() {
     GL_CHECK(glBindVertexArray(VAO));
     GL_CHECK(glDrawElements(GL_TRIANGLES, (HEIGHT / step - 1) * (WIDTH / step - 1) * 6, GL_UNSIGNED_INT, (GLvoid*)((HEIGHT / step - 1) * (WIDTH / step - 1) * 6 * sizeof(GLuint))));
     GL_CHECK(glBindVertexArray(0));
-
+        // 更新 FPS
+    updateFPS();
     glutSwapBuffers();
+    
 }
 
 
@@ -261,6 +336,9 @@ void cleanup() {
 }*/
 
 void keyboard(unsigned char key, int x, int y) {
+    if (key == '1') {
+        showWireframe = !showWireframe;
+    }
     camera.keyboard(key, x, y);
 }
 
@@ -287,14 +365,15 @@ int main(int argc, char** argv) {
     double amplitude = parser.getAmplitude();
     double persistence = parser.getPersistence();
     double lacunarity = parser.getLacunarity();
-    waterLevel = amplitude; // 假设水面高度用的是amplitude参数
-
+    //waterLevel = amplitude; // 假设水面高度用的是amplitude参数
+    std::cout << "frequency: " << frequency << " octave: " << octave << " amplitude: " << amplitude << " persistence: " << persistence << " lacunarity: " << lacunarity << std::endl;
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(800, 600);
     glutCreateWindow("OpenGL Multiple Textures Example");
 
     glutDisplayFunc(display);
+    glutIdleFunc(glutPostRedisplay);
     glutKeyboardFunc(keyboard); // 注册键盘回调函数
     glutMouseFunc(mouse);
     glutMotionFunc(mouseMotion);
