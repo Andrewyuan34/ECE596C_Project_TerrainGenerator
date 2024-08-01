@@ -3,10 +3,13 @@
 
 #include <GL/glew.h>
 #include <iostream>
+#include <cstdio>
 #include <string>
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
+
 
 //inline void checkGLError(const char* stmt, const char* fname, int line)
 //inline void printShaderInfoLog(GLuint shader)
@@ -16,6 +19,7 @@
 //inline std::string readShaderSource(const std::string& filePath) ***
 //inline GLuint loadShader(const GLchar* shaderSource, GLenum shaderType)
 //inline GLuint loadShaderFromFile(const std::string& filePath, GLenum shaderType)
+//inline GLuint loadTexture(const std::filesystem::path& imagepath)
 //inline GLuint createShaderProgram(const GLchar* vertexSource, const GLchar* fragmentSource)***
 //inline GLuint createShaderProgramFromFile(const std::string& vertexFilePath, const std::string& fragmentFilePath)
 //inline void useShaderProgram(GLuint program) ***
@@ -108,6 +112,70 @@ inline GLuint loadShaderFromFile(const std::string& filePath, GLenum shaderType)
         return 0;
     }
     return loadShader(shaderSource.c_str(), shaderType);
+}
+
+inline GLuint loadTexture(const std::filesystem::path& imagepath) {
+    std::cout << "Reading image " << imagepath << std::endl;
+
+    // 打开文件
+    FILE* file = fopen(imagepath.string().c_str(), "rb");
+    if (!file) {
+        std::cerr << "Image could not be opened: " << imagepath << std::endl;
+        return 0;
+    }
+
+    // 读取文件头
+    unsigned char header[54];
+    if (fread(header, 1, 54, file) != 54) {
+        std::cerr << "Not a correct BMP file: " << imagepath << std::endl;
+        fclose(file);
+        return 0;
+    }
+
+    if (header[0] != 'B' || header[1] != 'M') {
+        std::cerr << "Not a correct BMP file: " << imagepath << std::endl;
+        fclose(file);
+        return 0;
+    }
+
+    // 从文件头中获取图像信息
+    unsigned int dataPos = *(int*)&(header[0x0A]);
+    unsigned int imageSize = *(int*)&(header[0x22]);
+    unsigned int width = *(int*)&(header[0x12]);
+    unsigned int height = *(int*)&(header[0x16]);
+
+    // 一些BMP文件是没有指定图像大小的，这种情况下，我们可以计算出来
+    if (imageSize == 0) imageSize = width * height * 3;
+    if (dataPos == 0) dataPos = 54;
+
+    // 创建缓冲区
+    std::vector<unsigned char> data(imageSize);
+
+    // 读取图像数据到缓冲区中
+    fread(data.data(), 1, imageSize, file);
+
+    // 关闭文件
+    fclose(file);
+
+    // 创建一个OpenGL纹理
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+
+    // 绑定纹理
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    // 给纹理设定参数并生成 Mipmap
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); // 设置为使用 Mipmap 的线性过滤器
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // 加载图像数据到纹理中，并生成 Mipmap
+    gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGB, width, height, GL_BGR, GL_UNSIGNED_BYTE, data.data());
+
+    std::cout << "Successfully loaded " << imagepath << std::endl;
+
+    return textureID;
 }
 
 // 创建着色器程序并链接

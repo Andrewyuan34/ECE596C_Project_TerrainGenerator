@@ -77,6 +77,20 @@ double PerlinNoise::generateNoise(double x, double y, double z, double frequency
     return noiseValue * maxAmplitude;
 }
 
+double PerlinNoise::adjustNoiseForTerrainShape(double noiseValue, double x, double z, double width, double height, int step, double waterLevel) {
+    // for the boundary points, the height is always set to above the water level 
+    if (x == width / 2 - step || z == height / 2 - step || x == - width / 2 || z == - width / 2) {
+        if(noiseValue < waterLevel) {
+            noiseValue = (waterLevel - noiseValue) * 0.2 + waterLevel;
+            return noiseValue;
+        } else {
+            //std::cout << "x: " << x << " z: " << z << " noiseValue: " << noiseValue << " waterLevel: " << waterLevel << "\n";
+            return noiseValue;            
+        }
+    }else return noiseValue;
+}
+
+
 
 double PerlinNoise::fade(double t) const {
     return t * t * t * (t * (t * 6 - 15) + 10);

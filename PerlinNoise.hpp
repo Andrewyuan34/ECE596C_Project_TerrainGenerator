@@ -12,6 +12,8 @@ public:
     double generateNoise(double x, double y, double z, double frequency = 2.0, double amplitude = 0.6, int octave = 10
                                     , double persistence = 0.5, double lacunarity = 2.0);
 
+    double adjustNoiseForTerrainShape(double noiseValue, double x, double z, double width, double height, int step, double waterLevel);
+
     void setOctave(int newOctave) { octave = newOctave; }
     int getOctave() const { return octave; }
 

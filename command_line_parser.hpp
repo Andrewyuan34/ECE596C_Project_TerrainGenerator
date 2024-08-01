@@ -14,6 +14,8 @@ public:
     double getFrequency() const;
     int getOctave() const;
     double getAmplitude() const;
+    double getPersistence() const;
+    double getLacunarity() const;
     bool isVerbose() const;
 
 private:
@@ -23,8 +25,9 @@ private:
     double frequency;
     int octave;
     double amplitude;
+    double persistence;
+    double lacunarity;
     bool verboseMode;
 };
 
 #endif // COMMAND_LINE_PARSER_H
-

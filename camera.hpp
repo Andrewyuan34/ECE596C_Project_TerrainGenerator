@@ -2,8 +2,8 @@
 #define CAMERA_H
 
 #include <cmath>
-
-
+#include <vector>
+#include <GL/glew.h>
 
 struct Vec {
     float x;
@@ -27,15 +27,25 @@ struct Vec {
     }
 
     // Overload * operator for Vec
-    Vec operator*(const float scalar) {
+    Vec operator*(const float scalar) const{
         return {x * scalar, y * scalar, z * scalar};
     }
 
     // Overload + operator for Vec
-    Vec operator+(const Vec& other) {
+    Vec operator+(const Vec& other) const{
         return {x + other.x, y + other.y, z + other.z};
     }
+
+    Vec operator-(const Vec& other) const{
+        return {x - other.x, y - other.y, z - other.z};
+    }
 };
+
+Vec normalize(Vec vec);
+Vec crossProduct(const Vec vec1, const Vec vec2);
+float radians(float degrees);
+Vec computeFaceNormal(const Vec &v1, const Vec &v2, const Vec &v3);
+void computeVertexNormals(const std::vector<GLfloat> &vertices, const std::vector<GLuint> &indices, std::vector<GLfloat> &normals);
 
 
 
@@ -51,9 +61,7 @@ public:
     Vec getCameraFront() const;
 
 private:
-    Vec normalize(Vec vec);
-    Vec crossProduct(const Vec vec1, const Vec vec2) const;
-    float radians(float degrees) const;
+
 
     Vec cameraPos;
     Vec cameraFront;
