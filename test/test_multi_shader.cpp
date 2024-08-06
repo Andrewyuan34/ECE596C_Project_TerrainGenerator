@@ -10,12 +10,6 @@
 #include "../camera.hpp"
 #include "../command_line_parser.hpp"
 #include "../lighting.hpp"
-#include <cassert>
-
-
-//找到高度的最大值和最小值
-//然后筛选出边界的顶点
-//但问题在于EBO不一样了，这个怎么解决？
 
 
 GLuint shaderProgram1;
@@ -49,87 +43,6 @@ std::chrono::time_point<std::chrono::high_resolution_clock> lastTime;
 // 网格显示控制变量
 bool showWireframe = false;
 
-//GLfloat lightPosY = 100.0f; // 初始化光源Y坐标
-/*
-std::vector<GLfloat> cubeVertices = {
-    // Positions          
-    -0.5f, -0.5f, -0.5f,
-     0.5f, -0.5f, -0.5f,
-     0.5f,  0.5f, -0.5f,
-    -0.5f,  0.5f, -0.5f,
-    -0.5f, -0.5f,  0.5f,
-     0.5f, -0.5f,  0.5f,
-     0.5f,  0.5f,  0.5f,
-    -0.5f,  0.5f,  0.5f
-};
-
-std::vector<GLuint> cubeIndices = {
-    // Front face
-    0, 1, 2,
-    2, 3, 0,
-    // Back face
-    4, 5, 6,
-    6, 7, 4,
-    // Left face
-    0, 4, 7,
-    7, 3, 0,
-    // Right face
-    1, 5, 6,
-    6, 2, 1,
-    // Top face
-    3, 2, 6,
-    6, 7, 3,
-    // Bottom face
-    0, 1, 5,
-    5, 4, 0
-};
-
-GLuint cubeVAO, cubeVBO, cubeEBO;
-
-float lightPosY = WIDTH / 30; // 初始光源y位置
-float lightPosX = 0.0f; // 光源x位置
-float lightPosZ = 0.0f; // 光源z位置
-float angle = 0.0f; // 角度初始化为0
-float radius = WIDTH * 0.1f; // 圆的半径
-
-GLfloat modelMatrix[16] = {
-    5.0f, 0.0f, 0.0f, 0.0f,
-    0.0f, 5.0f, 0.0f, 0.0f,
-    0.0f, 0.0f, 5.0f, 0.0f,
-    radius, lightPosY, 0.0f, 1.0f
-};
-
-void updateLightPosition() {
-    // 更新光源的XZ位置
-    
-    modelMatrix[12] = 0.0f + radius * cos(angle); // 更新X位置
-    modelMatrix[14] = 0.0f + radius * sin(angle); // 更新Z位置
-    modelMatrix[13] = lightPosY; // 保持Y位置不变
-    
-}
-
-void initCube() {
-    glGenVertexArrays(1, &cubeVAO);
-    glGenBuffers(1, &cubeVBO);
-    glGenBuffers(1, &cubeEBO);
-
-    glBindVertexArray(cubeVAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
-    glBufferData(GL_ARRAY_BUFFER, cubeVertices.size() * sizeof(GLfloat), &cubeVertices[0], GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, cubeIndices.size() * sizeof(GLuint), &cubeIndices[0], GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindVertexArray(0);
-}*/
-
-
-
-
 void updateFPS() {
     frameCount++;
     auto currentTime = std::chrono::high_resolution_clock::now();
@@ -144,66 +57,6 @@ void updateFPS() {
         glutSetWindowTitle(title.c_str());
     }
 }
-
-const int noiseWidth = 1024;
-const int noiseHeight = 1024;
-std::vector<float> noiseData(noiseWidth * noiseHeight);
-
-void generatePerlinNoise() { //现在这个参数生成噪声图正正好
-    PerlinNoise perlin(3); // 使用你的 PerlinNoise 类实例化
-
-    for (int y = 0; y < noiseHeight; ++y) {
-        for (int x = 0; x < noiseWidth; ++x) {
-            double nx = static_cast<double>(x) / noiseWidth;
-            double ny = static_cast<double>(y) / noiseHeight;
-            // 生成噪声值，并缩放到 [0, 1] 范围
-            double noiseValue = perlin.generateNoise(nx * 5.0, ny * 5.0, 0.5, 2.0, 0.6, 3, 0.5, 0.6); //(nx * 5.0, ny * 5.0, 0.5, 2.0, 0.6, 3, 0.5, 0.6);
-            if(noiseValue < 0.00 && noiseValue > - 0.03) noiseData[y * noiseWidth + x] = 1.0;
-            else noiseData[y * noiseWidth + x] = 0.0f;
-        }
-    }
-}
-
-GLuint noiseTexture;
-
-void createNoiseTexture() {
-    glGenTextures(1, &noiseTexture);
-    glBindTexture(GL_TEXTURE_2D, noiseTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 512, 512, 0, GL_RGB, GL_UNSIGNED_BYTE, noiseData.data());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-}
-
-
-// 保存噪声纹理为 PNM 文件
-void saveNoiseTextureToPNM(const std::vector<float>& noiseData, int width, int height, const std::string& filename) {
-    // 创建文件输出流
-    std::ofstream file(filename, std::ios::out | std::ios::binary);
-    if (!file) {
-        std::cerr << "无法创建文件 " << filename << std::endl;
-        return;
-    }
-
-    // 写入 PNM 文件头 (P5 是灰度图像)
-    file << "P5\n" << width << " " << height << "\n255\n";
-
-    // 将噪声数据归一化并写入文件
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            // 将噪声值从 [0, 1] 范围映射到 [0, 255]
-            unsigned char pixelValue = static_cast<unsigned char>(noiseData[y * width + x] * 255);
-            file.write(reinterpret_cast<const char*>(&pixelValue), sizeof(pixelValue));
-        }
-    }
-
-    file.close();
-    std::cout << "噪声纹理已保存为 " << filename << std::endl;
-}
-
-
-
 
 void init(double frequency, int octave, double amplitude, double persistence, double lacunarity) {
     if (glewInit() != GLEW_OK) {
@@ -286,10 +139,7 @@ void init(double frequency, int octave, double amplitude, double persistence, do
             vertices.push_back((static_cast<float>(z) + HEIGHT / 2) / HEIGHT);
 
             // 添加地形高度，用于判断是否显示水面
-            vertices.push_back(height_map[j]);/*
-            if(height_map[j] < waterdepthMax) vertices.push_back((waterLevel - height_map[j]) / waterdepthMax); // waterdepth
-            else vertices.push_back(0.0f); // waterdepth*/
-            ++j;
+            vertices.push_back(height_map[j++]);
         }
     }
 
@@ -371,9 +221,7 @@ void init(double frequency, int octave, double amplitude, double persistence, do
 
     GL_CHECK(glBindVertexArray(0));
 
-    //initCube();
-    //assert(lighting.shaderProgram == cubeShaderProgram);
-    //lighting.setupModelMatrix();
+
     lighting.initCube();
 
 
@@ -392,16 +240,7 @@ void init(double frequency, int octave, double amplitude, double persistence, do
     lastTime = std::chrono::high_resolution_clock::now();
 }
 
-
-/*void convertMatrix(GLdouble* source, GLfloat* dest) {
-    for (int i = 0; i < 16; ++i) {
-        dest[i] = static_cast<GLfloat>(source[i]);
-    }
-}*/
-
 void display() {
-    // 1. 渲染到帧缓冲对象
-    //glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     GL_CHECK(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 
     // 设置投影矩阵
@@ -462,11 +301,6 @@ void display() {
     glBindTexture(GL_TEXTURE_2D, texture2);
     glUniform1i(glGetUniformLocation(shaderProgram1, "texture2"), 1);
 
-    // 绑定噪声纹理
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, noiseTexture); // 绑定噪声纹理
-    glUniform1i(glGetUniformLocation(shaderProgram1, "noiseTexture"), 2);
-
     // 根据 showWireframe 变量设置绘制模式
     if (showWireframe) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -517,9 +351,6 @@ void display() {
 }
 
 
-
-
-
 void cleanup() {
     deleteShaderProgram(shaderProgram1);
     deleteShaderProgram(cubeShaderProgram);
@@ -528,11 +359,6 @@ void cleanup() {
     GL_CHECK(glDeleteVertexArrays(1, &VAO));
     GL_CHECK(glDeleteBuffers(1, &VBO));
     GL_CHECK(glDeleteBuffers(1, &EBO));
-
-    // 删除立方体的 VAO、VBO 和 EBO
-    //GL_CHECK(glDeleteVertexArrays(1, &cubeVAO));
-    //GL_CHECK(glDeleteBuffers(1, &cubeVBO));
-    //GL_CHECK(glDeleteBuffers(1, &cubeEBO));
 
     // 删除纹理
     glDeleteTextures(1, &texture1);
