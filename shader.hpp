@@ -178,6 +178,7 @@ inline GLuint loadTexture(const std::filesystem::path& imagepath) {
     return textureID;
 }
 
+
 // 创建着色器程序并链接
 inline GLuint createShaderProgram(const GLchar* vertexSource, const GLchar* fragmentSource) {
     GLuint vertexShader = loadShader(vertexSource, GL_VERTEX_SHADER);

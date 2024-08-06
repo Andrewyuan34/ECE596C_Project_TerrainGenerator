@@ -4,10 +4,14 @@
 #include <vector>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include "../shader.hpp"
 #include "../PerlinNoise.cpp"
 #include "../camera.hpp"
 #include "../command_line_parser.hpp"
+#include "../lighting.hpp"
+#include <cassert>
+
 
 //找到高度的最大值和最小值
 //然后筛选出边界的顶点
@@ -19,16 +23,23 @@ GLuint cubeShaderProgram;
 GLuint VBO, VAO, EBO, texture1, texture2, texture3;
 std::vector<GLfloat> vertices;
 std::vector<GLuint> indices;
-PerlinNoise perlinNoise(17, 4); //asdddddddddddddddd
+PerlinNoise perlinNoise(18, 4); //asdddddddddddddddd
+float HeightDif_low = 0.0f;
+float HeightDif_high = 0.0f;
+float minHeight = std::numeric_limits<float>::max();
+float maxHeight = std::numeric_limits<float>::min();
+float waterdepthMax = 0.0f;
+
 
 float cameraDistance = 100.0f;
 float waterLevel = -5.0f; // 设置水平线高度
 
-const int WIDTH = 4096;
+const int WIDTH = 1024;
 const int HEIGHT = WIDTH;
 const int step = WIDTH / 32;
-
+Lighting lighting(WIDTH * 0.1f, WIDTH / 30);
 Camera camera({0, 0, 100});
+float angle = 0.0f;
 
 // FPS 相关变量
 int frameCount = 0;
@@ -38,8 +49,8 @@ std::chrono::time_point<std::chrono::high_resolution_clock> lastTime;
 // 网格显示控制变量
 bool showWireframe = false;
 
-GLfloat lightPosY = 100.0f; // 初始化光源Y坐标
-
+//GLfloat lightPosY = 100.0f; // 初始化光源Y坐标
+/*
 std::vector<GLfloat> cubeVertices = {
     // Positions          
     -0.5f, -0.5f, -0.5f,
@@ -75,6 +86,27 @@ std::vector<GLuint> cubeIndices = {
 
 GLuint cubeVAO, cubeVBO, cubeEBO;
 
+float lightPosY = WIDTH / 30; // 初始光源y位置
+float lightPosX = 0.0f; // 光源x位置
+float lightPosZ = 0.0f; // 光源z位置
+float angle = 0.0f; // 角度初始化为0
+float radius = WIDTH * 0.1f; // 圆的半径
+
+GLfloat modelMatrix[16] = {
+    5.0f, 0.0f, 0.0f, 0.0f,
+    0.0f, 5.0f, 0.0f, 0.0f,
+    0.0f, 0.0f, 5.0f, 0.0f,
+    radius, lightPosY, 0.0f, 1.0f
+};
+
+void updateLightPosition() {
+    // 更新光源的XZ位置
+    
+    modelMatrix[12] = 0.0f + radius * cos(angle); // 更新X位置
+    modelMatrix[14] = 0.0f + radius * sin(angle); // 更新Z位置
+    modelMatrix[13] = lightPosY; // 保持Y位置不变
+    
+}
 
 void initCube() {
     glGenVertexArrays(1, &cubeVAO);
@@ -93,7 +125,7 @@ void initCube() {
     glEnableVertexAttribArray(0);
 
     glBindVertexArray(0);
-}
+}*/
 
 
 
@@ -113,6 +145,66 @@ void updateFPS() {
     }
 }
 
+const int noiseWidth = 1024;
+const int noiseHeight = 1024;
+std::vector<float> noiseData(noiseWidth * noiseHeight);
+
+void generatePerlinNoise() { //现在这个参数生成噪声图正正好
+    PerlinNoise perlin(3); // 使用你的 PerlinNoise 类实例化
+
+    for (int y = 0; y < noiseHeight; ++y) {
+        for (int x = 0; x < noiseWidth; ++x) {
+            double nx = static_cast<double>(x) / noiseWidth;
+            double ny = static_cast<double>(y) / noiseHeight;
+            // 生成噪声值，并缩放到 [0, 1] 范围
+            double noiseValue = perlin.generateNoise(nx * 5.0, ny * 5.0, 0.5, 2.0, 0.6, 3, 0.5, 0.6); //(nx * 5.0, ny * 5.0, 0.5, 2.0, 0.6, 3, 0.5, 0.6);
+            if(noiseValue < 0.00 && noiseValue > - 0.03) noiseData[y * noiseWidth + x] = 1.0;
+            else noiseData[y * noiseWidth + x] = 0.0f;
+        }
+    }
+}
+
+GLuint noiseTexture;
+
+void createNoiseTexture() {
+    glGenTextures(1, &noiseTexture);
+    glBindTexture(GL_TEXTURE_2D, noiseTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 512, 512, 0, GL_RGB, GL_UNSIGNED_BYTE, noiseData.data());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+
+
+// 保存噪声纹理为 PNM 文件
+void saveNoiseTextureToPNM(const std::vector<float>& noiseData, int width, int height, const std::string& filename) {
+    // 创建文件输出流
+    std::ofstream file(filename, std::ios::out | std::ios::binary);
+    if (!file) {
+        std::cerr << "无法创建文件 " << filename << std::endl;
+        return;
+    }
+
+    // 写入 PNM 文件头 (P5 是灰度图像)
+    file << "P5\n" << width << " " << height << "\n255\n";
+
+    // 将噪声数据归一化并写入文件
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            // 将噪声值从 [0, 1] 范围映射到 [0, 255]
+            unsigned char pixelValue = static_cast<unsigned char>(noiseData[y * width + x] * 255);
+            file.write(reinterpret_cast<const char*>(&pixelValue), sizeof(pixelValue));
+        }
+    }
+
+    file.close();
+    std::cout << "噪声纹理已保存为 " << filename << std::endl;
+}
+
+
+
+
 void init(double frequency, int octave, double amplitude, double persistence, double lacunarity) {
     if (glewInit() != GLEW_OK) {
         std::cerr << "Failed to initialize GLEW" << std::endl;
@@ -122,7 +214,6 @@ void init(double frequency, int octave, double amplitude, double persistence, do
     // 加载并编译着色器
     shaderProgram1 = createShaderProgramFromFile("shader/sand_vertexShader.glsl", "shader/sand_fragmentShader.glsl");
     cubeShaderProgram = createShaderProgramFromFile("shader/cube_vertex_shader.glsl", "shader/cube_fragment_shader.glsl");
-
     if (shaderProgram1 == 0 || cubeShaderProgram == 0) {
         std::cerr << "Failed to create shader program" << std::endl;
         return;
@@ -130,7 +221,6 @@ void init(double frequency, int octave, double amplitude, double persistence, do
 
     texture1 = loadTexture("Texture/grass.bmp");
     texture2 = loadTexture("Texture/sand.bmp");
-    texture3 = loadTexture("Texture/water.bmp");
 
     // 设置环境光颜色和强度
     glUseProgram(shaderProgram1);
@@ -140,8 +230,7 @@ void init(double frequency, int octave, double amplitude, double persistence, do
     std::vector<float> height_map(WIDTH * HEIGHT);
     int i = 0;
     int j = 0;
-    float minHeight = std::numeric_limits<float>::max();
-    float maxHeight = std::numeric_limits<float>::min();
+
     std::vector<float> height_array;
     height_array.reserve(WIDTH * HEIGHT);
     // 生成地形顶点数据和索引
@@ -155,7 +244,13 @@ void init(double frequency, int octave, double amplitude, double persistence, do
             if (height > maxHeight) maxHeight = height;
         }
     }
-    waterLevel = ((maxHeight - minHeight) * 0.3f + minHeight); // 设置水面高度为地形高度的 30%
+
+    //waterdepth = (waterLevel)
+    waterLevel = ((maxHeight - minHeight) * 0.45f + minHeight); // 设置水面高度为地形高度的 40%
+    HeightDif_low = (minHeight + ((maxHeight - minHeight)* 0.5f)) * WIDTH / 60.0f ; // 设置高度差下限
+    HeightDif_high = (minHeight + ((maxHeight - minHeight)* 0.01f)) * WIDTH / 60.0f ; // 设置高度差上限
+    waterdepthMax = (waterLevel - minHeight) * WIDTH / 60.0f;
+    
     i = 0;
     std::vector<GLfloat> vertices;
     for (int z = -HEIGHT / 2; z < HEIGHT / 2; z += step) {
@@ -168,12 +263,13 @@ void init(double frequency, int octave, double amplitude, double persistence, do
             i++;
             height_map[j++] = scaledHeight;
             // 添加纹理坐标
-            vertices.push_back((static_cast<float>(x) + WIDTH / 2) / WIDTH);
-            vertices.push_back((static_cast<float>(z) + HEIGHT / 2) / HEIGHT);
+            vertices.push_back(2 * (static_cast<float>(x) + WIDTH / 2) / WIDTH);
+            vertices.push_back(2 * (static_cast<float>(z) + HEIGHT / 2) / HEIGHT);
 
             // 添加地形高度（此时设置为0, 水面部分会在之后更新）
-            vertices.push_back(0.0f);
+            vertices.push_back(scaledHeight);
         }
+        
     }
 
     j = 0;
@@ -190,7 +286,10 @@ void init(double frequency, int octave, double amplitude, double persistence, do
             vertices.push_back((static_cast<float>(z) + HEIGHT / 2) / HEIGHT);
 
             // 添加地形高度，用于判断是否显示水面
-            vertices.push_back(height_map[j++]);
+            vertices.push_back(height_map[j]);/*
+            if(height_map[j] < waterdepthMax) vertices.push_back((waterLevel - height_map[j]) / waterdepthMax); // waterdepth
+            else vertices.push_back(0.0f); // waterdepth*/
+            ++j;
         }
     }
 
@@ -240,7 +339,6 @@ void init(double frequency, int octave, double amplitude, double persistence, do
         verticesWithNormals.push_back(vertices[i * 6 + 3]); // u
         verticesWithNormals.push_back(vertices[i * 6 + 4]); // v
         verticesWithNormals.push_back(vertices[i * 6 + 5]); // height
-        std::cout << normals[i * 6] << " " << normals[i * 6 + 1] << " " << normals[i * 6 + 2] << std::endl;
     }
 
     // 生成并绑定VAO
@@ -273,7 +371,11 @@ void init(double frequency, int octave, double amplitude, double persistence, do
 
     GL_CHECK(glBindVertexArray(0));
 
-    initCube();
+    //initCube();
+    //assert(lighting.shaderProgram == cubeShaderProgram);
+    //lighting.setupModelMatrix();
+    lighting.initCube();
+
 
     // 设置面剔除和深度测试
     glFrontFace(GL_CW);
@@ -291,19 +393,21 @@ void init(double frequency, int octave, double amplitude, double persistence, do
 }
 
 
-void convertMatrix(GLdouble* source, GLfloat* dest) {
+/*void convertMatrix(GLdouble* source, GLfloat* dest) {
     for (int i = 0; i < 16; ++i) {
         dest[i] = static_cast<GLfloat>(source[i]);
     }
-}
+}*/
 
 void display() {
+    // 1. 渲染到帧缓冲对象
+    //glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     GL_CHECK(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 
     // 设置投影矩阵
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(45.0f, 800.0f / 600.0f, 10.0f, 1000.0f);
+    gluPerspective(45.0f, 800.0f / 600.0f, 10.0f, 10000.0f);
     GLdouble projectionMatrixD[16];
     glGetDoublev(GL_PROJECTION_MATRIX, projectionMatrixD);
     GLfloat projectionMatrix[16];
@@ -332,10 +436,18 @@ void display() {
     GLint waterLevelLoc = glGetUniformLocation(shaderProgram1, "waterLevel");
     glUniform1f(waterLevelLoc, waterLevel);
 
+    // 传递高度差的上下限
+    GLint HeightDif_lowLoc = glGetUniformLocation(shaderProgram1, "HeightDif_low");
+    glUniform1f(HeightDif_lowLoc, HeightDif_low);
+    GLint HeightDif_highLoc = glGetUniformLocation(shaderProgram1, "HeightDif_high");
+    glUniform1f(HeightDif_highLoc, HeightDif_high);
+
+    GLint waterdepthMaxLoc = glGetUniformLocation(shaderProgram1, "waterDepthMax");
+    glUniform1f(waterdepthMaxLoc, waterdepthMax);
+
     // 设置光源和摄像机位置
     GLint lightPosLoc = glGetUniformLocation(shaderProgram1, "lightPos");
-    glUniform3f(lightPosLoc, 100.0f, lightPosY, 100.0f);
-    std::cout << "lightPosY: " << lightPosY << std::endl;
+    glUniform3f(lightPosLoc, lighting.getmodelMatrix(12), lighting.getmodelMatrix(13), lighting.getmodelMatrix(14));
     GLint viewPosLoc = glGetUniformLocation(shaderProgram1, "viewPos");
     glUniform3f(viewPosLoc, camera.getCameraPos().x, camera.getCameraPos().y, camera.getCameraPos().z);
 
@@ -349,6 +461,11 @@ void display() {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, texture2);
     glUniform1i(glGetUniformLocation(shaderProgram1, "texture2"), 1);
+
+    // 绑定噪声纹理
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, noiseTexture); // 绑定噪声纹理
+    glUniform1i(glGetUniformLocation(shaderProgram1, "noiseTexture"), 2);
 
     // 根据 showWireframe 变量设置绘制模式
     if (showWireframe) {
@@ -368,29 +485,30 @@ void display() {
     GL_CHECK(glDrawElements(GL_TRIANGLES, (HEIGHT / step - 1) * (WIDTH / step - 1) * 6, GL_UNSIGNED_INT, (GLvoid*)((HEIGHT / step - 1) * (WIDTH / step - 1) * 6 * sizeof(GLuint))));
     GL_CHECK(glBindVertexArray(0));
 
+    // 在绘制光源小方块之前禁用面剔除和深度测试
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+
     // 使用正方体着色器程序,这个部分可以先让gpt写一个最简单的立方体光源程序，然后把这两个程序结合到一块就行了。
     glUseProgram(cubeShaderProgram);
-
     GLint modelLoc = glGetUniformLocation(cubeShaderProgram, "model");
     GLint viewLocCube = glGetUniformLocation(cubeShaderProgram, "view");
     GLint projLocCube = glGetUniformLocation(cubeShaderProgram, "projection");
-    GLfloat modelMatrix[16] = {
-        5.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 5.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 5.0f, 0.0f,
-        100.0f, lightPosY, 100.0f, 1.0f
-    };
-
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMatrix);
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, lighting.getmodelMatrix());
     glUniformMatrix4fv(viewLocCube, 1, GL_FALSE, viewMatrix);
     glUniformMatrix4fv(projLocCube, 1, GL_FALSE, projectionMatrix);
 
     GLint lightColorLoc = glGetUniformLocation(cubeShaderProgram, "lightColor");
     glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f); // 发光正方体的颜色
 
-    GL_CHECK(glBindVertexArray(cubeVAO));
-    GL_CHECK(glDrawElements(GL_TRIANGLES, cubeIndices.size(), GL_UNSIGNED_INT, 0));
+    GL_CHECK(glBindVertexArray(lighting.getVAO()));
+    GL_CHECK(glDrawElements(GL_TRIANGLES, lighting.getIndices().size(), GL_UNSIGNED_INT, 0));
     GL_CHECK(glBindVertexArray(0));
+
+    // 重新启用面剔除和深度测试，以绘制场景中的其他物体
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
 
     // 更新 FPS
     updateFPS();
@@ -412,9 +530,9 @@ void cleanup() {
     GL_CHECK(glDeleteBuffers(1, &EBO));
 
     // 删除立方体的 VAO、VBO 和 EBO
-    GL_CHECK(glDeleteVertexArrays(1, &cubeVAO));
-    GL_CHECK(glDeleteBuffers(1, &cubeVBO));
-    GL_CHECK(glDeleteBuffers(1, &cubeEBO));
+    //GL_CHECK(glDeleteVertexArrays(1, &cubeVAO));
+    //GL_CHECK(glDeleteBuffers(1, &cubeVBO));
+    //GL_CHECK(glDeleteBuffers(1, &cubeEBO));
 
     // 删除纹理
     glDeleteTextures(1, &texture1);
@@ -422,30 +540,22 @@ void cleanup() {
     glDeleteTextures(1, &texture3);
 }
 
-
-/*void keyboard(unsigned char key, int x, int y) {
-    switch (key) {
-        case 'w': // 放大视角
-            cameraDistance -= 1.0f;
-            glutPostRedisplay();
-            break;
-        case 's': // 缩小视角
-            cameraDistance += 1.0f;
-            glutPostRedisplay();
-            break;
-    }
-}*/
-
 void keyboard(unsigned char key, int x, int y) {
     switch (key) {
         case '1':
             showWireframe = !showWireframe;
             break;
-        case '2': // 光源上升
-            lightPosY += 10.0f;
+        case '2': // 顺时针移动光源
+            angle += 0.1f; // 增加角度
+            if (angle >= 2 * M_PI) angle -= 2 * M_PI; // 确保角度在[0, 2π]之间
+            lighting.updateLightPosition(angle); // 更新光源位置
+            //updateLightPosition();
             break;
-        case '3': // 光源下降
-            lightPosY -= 10.0f;
+        case '3': // 逆时针移动光源
+            angle -= 0.1f; // 减少角度
+            if (angle < 0) angle += 2 * M_PI; // 确保角度在[0, 2π]之间
+            lighting.updateLightPosition(angle); // 更新光源位置
+            //updateLightPosition();
             break;
         default:
             camera.keyboard(key, x, y);
@@ -485,7 +595,7 @@ int main(int argc, char** argv) {
     glutCreateWindow("OpenGL Multiple Textures Example");
 
     glutDisplayFunc(display);
-    //glutIdleFunc(glutPostRedisplay);
+    glutIdleFunc(glutPostRedisplay);
     glutKeyboardFunc(keyboard); // 注册键盘回调函数
     glutMouseFunc(mouse);
     glutMotionFunc(mouseMotion);

@@ -84,7 +84,6 @@ double PerlinNoise::adjustNoiseForTerrainShape(double noiseValue, double x, doub
             noiseValue = (waterLevel - noiseValue) * 0.2 + waterLevel;
             return noiseValue;
         } else {
-            //std::cout << "x: " << x << " z: " << z << " noiseValue: " << noiseValue << " waterLevel: " << waterLevel << "\n";
             return noiseValue;            
         }
     }else return noiseValue;
