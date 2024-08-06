@@ -85,7 +85,7 @@ void init(double frequency, int octave, double amplitude, double persistence, do
     int j = 0;
 
     std::vector<float> height_array;
-    height_array.reserve(WIDTH * HEIGHT);
+    height_array.reserve(WIDTH * HEIGHT / step);
     // 生成地形顶点数据和索引
     for (int z = -HEIGHT / 2; z < HEIGHT / 2; z += step) {
         for (int x = -WIDTH / 2; x < WIDTH / 2; x += step) {
@@ -154,7 +154,6 @@ void init(double frequency, int octave, double amplitude, double persistence, do
             indices.push_back(start + WIDTH / step + 1);
             indices.push_back(start + WIDTH / step);
             indices.push_back(start);
-            //std::cout << start << " " << start + 1 << " " << start + WIDTH / step + 1 << " " << start + WIDTH / step << std::endl;
         }
     }
 
@@ -169,7 +168,6 @@ void init(double frequency, int octave, double amplitude, double persistence, do
             indices.push_back(start + WIDTH / step + 1);
             indices.push_back(start + WIDTH / step);
             indices.push_back(start);
-            //std::cout << start << " " << start + 1 << " " << start + WIDTH / step + 1 << " " << start + WIDTH / step << std::endl;
         }
     }
 

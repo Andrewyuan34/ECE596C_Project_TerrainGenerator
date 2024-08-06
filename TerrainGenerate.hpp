@@ -10,14 +10,20 @@ public:
     Terrain(int width, int height, int step);
     ~Terrain();
 
-    void generateTerrain(double frequency, int octave, double amplitude, double persistence, double lacunarity);
+    void generateBaseTerrain(double frequency, int octave, double amplitude, double persistence, double lacunarity);
+    void generateWater();
+    void generateTerrainNormals();
+    void initTerrain();
+    GLuint getVAO() const;
+    
 
-    std::vector<GLfloat> vertices;
+    std::vector<GLfloat> vertices, verticesWithNormals;
     std::vector<GLuint> indices;
-    std::vector<GLfloat> normals;
     GLuint VAO, VBO, EBO;
     int width, height, step;
     float minHeight, maxHeight;
+    PerlinNoise perlinNoise(18, 4);
+    float waterLevel, HeightDif_low, HeightDif_high, waterdepthMax;
 };
 
 #endif // TERRAIN_H
