@@ -60,8 +60,8 @@ void Terrain::generateBaseTerrain(double frequency, int octave, double amplitude
             height_map.push_back(scaledheight);
             
             // Generate texture coordinates
-            vertices.push_back(2 * (static_cast<float>(x) + width / 2) / width);
-            vertices.push_back(2 * (static_cast<float>(z) + height / 2) / height);
+            vertices.push_back((static_cast<float>(x) + width / 2) / width);
+            vertices.push_back((static_cast<float>(z) + height / 2) / height);
 
             // Add the height for the terrain, used to determine if the water should be displayed
             vertices.push_back(scaledheight);

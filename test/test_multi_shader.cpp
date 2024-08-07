@@ -15,7 +15,7 @@
 
 GLuint shaderProgram1;
 GLuint cubeShaderProgram;
-GLuint VBO, VAO, EBO, texture1, texture2, texture3;
+GLuint VBO, VAO, EBO, texture1, texture2;
 std::vector<GLfloat> vertices;
 std::vector<GLuint> indices;
 PerlinNoise perlinNoise(18, 4); 
@@ -27,14 +27,14 @@ float waterdepthMax = 0.0f;
 
 
 float cameraDistance = 100.0f;
-float waterLevel = -5.0f; // 设置水平线高度
+float waterLevel = -5.0f; // 
 
-const int WIDTH = 1024 * 8; //asssssssssssssssssss
-const int HEIGHT = WIDTH;
-const int step = WIDTH / 512; //这个step暂时还是有用的！记住了！！！！！！暂时还不改
+const int WIDTH = 1024 * 10; 
+const int HEIGHT = WIDTH;//saaaaaaaaaaaaaaa
+const int step = WIDTH / 128; //这个step暂时还是有用的！记住了！！！！！！暂时还不改
 //const int step = 2;
 //Terrain terrain(WIDTH, 32, 19);
-auto terrain = std::make_unique<Terrain>(WIDTH, 512, 18); 
+auto terrain = std::make_unique<Terrain>(WIDTH, 128, 42); //asssssssssssssssss
 Lighting lighting(WIDTH * 0.1f, WIDTH / 30);
 Camera camera({0, 0, 100});
 float angle = 0.0f;
@@ -75,7 +75,7 @@ void init(double frequency, int octave, double amplitude, double persistence, do
         std::cerr << "Failed to create shader program" << std::endl;
         return;
     }
-    
+    std::cout << WIDTH << " " << HEIGHT << " " << step << std::endl;
     texture1 = loadTexture("Texture/grass.bmp");
     texture2 = loadTexture("Texture/sand.bmp");
 
@@ -416,7 +416,6 @@ void display() {
 
 
 void cleanup() {
-    
     deleteShaderProgram(shaderProgram1);
     deleteShaderProgram(cubeShaderProgram);
 
@@ -425,17 +424,12 @@ void cleanup() {
     GL_CHECK(glDeleteBuffers(1, &VBO));
     GL_CHECK(glDeleteBuffers(1, &EBO));
 
-    //glDeleteBuffers(1, &terrain.VBO);
-    //glDeleteBuffers(1, &terrain.VAO);
-    //glDeleteVertexArrays(1, &terrain.EBO);
-
     glDeleteBuffers(1, &lighting.cubeVBO);
     glDeleteBuffers(1, &lighting.cubeEBO);
     glDeleteVertexArrays(1, &lighting.cubeVAO);
     // 删除纹理
     glDeleteTextures(1, &texture1);
     glDeleteTextures(1, &texture2);
-    glDeleteTextures(1, &texture3);
 }
 
 void keyboard(unsigned char key, int x, int y) {
@@ -471,7 +465,7 @@ void mouseMotion(int x, int y) {
 }
 
 int main(int argc, char** argv) {
-    // 使用CommandLineParser解析命令行参数
+    // Use the command line parser to parse the command line arguments
     CommandLineParser parser;
     try {
         parser.parse(argc, argv);
@@ -479,27 +473,36 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // 设置解析的参数
+    // Set the parameters for the Perlin noise generator
     double frequency = parser.getFrequency();
     int octave = parser.getOctave();
     double amplitude = parser.getAmplitude();
     double persistence = parser.getPersistence();
     double lacunarity = parser.getLacunarity();
-    //waterLevel = amplitude; // 假设水面高度用的是amplitude参数
-    std::cout << "frequency: " << frequency << " octave: " << octave << " amplitude: " << amplitude << " persistence: " << persistence << " lacunarity: " << lacunarity << std::endl;
+    int seed = parser.getSeed();
+    int width = parser.getWidth();
+    int step = parser.getStep();
+    std::cout << "Current Terrain Parameter: Frequency: " << frequency << " Octave: " << octave 
+                                        << " Amplitude: " << amplitude << " Persistence: " << persistence 
+                                        << " Lacunarity: " << lacunarity << " Seed: " << seed << " Width: " << width 
+                                        << " Step: " << step << '\n';
+
+    // Initialize GLUT
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(800, 600);
     glutCreateWindow("OpenGL Multiple Textures Example");
 
-    glutDisplayFunc(display);
-    glutIdleFunc(glutPostRedisplay);
-    glutKeyboardFunc(keyboard); // 注册键盘回调函数
-    glutMouseFunc(mouse);
-    glutMotionFunc(mouseMotion);
-    atexit(cleanup);
+    glutDisplayFunc(display); // Register the display callback function
+    glutIdleFunc(glutPostRedisplay); // Register the idle callback function
+    glutKeyboardFunc(keyboard); // Register the keyboard callback function
+    glutMouseFunc(mouse); // Register the mouse callback function
+    glutMotionFunc(mouseMotion); // Register the mouse motion callback function
 
-    init(frequency, octave, amplitude, persistence, lacunarity);
-    glutMainLoop();
+    atexit(cleanup); // Register the cleanup function
+ 
+    init(frequency, octave, amplitude, persistence, lacunarity); // Initialize the program
+
+    glutMainLoop(); // Enter the GLUT main event loop
     return 0;
 }

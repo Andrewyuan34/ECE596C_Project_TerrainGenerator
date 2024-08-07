@@ -51,47 +51,59 @@ inline void printShaderInfoLog(GLuint shader) {
 }
 
 // 打印程序信息日志
-inline void printProgramInfoLog(GLuint program) {
-    GLint infoLogLength = 0;
-    glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLogLength);
-    if (infoLogLength > 0) {
-        std::vector<GLchar> infoLog(infoLogLength);
-        glGetProgramInfoLog(program, infoLogLength, nullptr, &infoLog[0]);
-        std::cerr << "Program InfoLog:" << std::endl << &infoLog[0] << std::endl;
+// 检查着色器编译错误
+inline void checkShaderCompileErrors(GLuint shader) {
+    GLint success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        GLint logLength;
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
+        if (logLength > 0) {
+            std::string log(logLength, '\0');
+            glGetShaderInfoLog(shader, logLength, NULL, &log[0]);
+            std::cerr << "ERROR::SHADER::COMPILATION_FAILED\n" << log << std::endl;
+        }
+        glDeleteShader(shader); // Delete shader to free up resources
     }
 }
 
 // 检查着色器编译错误
-inline void checkShaderCompileErrors(GLuint shader) {
+/*inline void checkShaderCompileErrors(GLuint shader) {
     GLint success;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
     if (!success) {
         printShaderInfoLog(shader);
         std::cerr << "| ERROR::SHADER_COMPILATION_ERROR" << std::endl;
     }
-}
+}*/
 
 // 检查程序链接错误
 inline void checkProgramLinkErrors(GLuint program) {
     GLint success;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (!success) {
-        printProgramInfoLog(program);
+        printShaderInfoLog(program);
         std::cerr << "| ERROR::PROGRAM_LINKING_ERROR" << std::endl;
     }
 }
 
-// 从文件中读取着色器源码
 inline std::string readShaderSource(const std::string& filePath) {
     std::ifstream shaderFile(filePath);
     std::stringstream shaderStream;
-
+    
     if (!shaderFile.is_open()) {
         std::cerr << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ: " << filePath << std::endl;
         return "";
     }
 
     shaderStream << shaderFile.rdbuf();
+
+    if (shaderFile.fail()) {
+        std::cerr << "ERROR::SHADER::FAILED_TO_READ_DATA: " << filePath << std::endl;
+        shaderFile.close();
+        return "";
+    }
+
     shaderFile.close();
     return shaderStream.str();
 }
@@ -99,9 +111,16 @@ inline std::string readShaderSource(const std::string& filePath) {
 // 加载并编译着色器
 inline GLuint loadShader(const GLchar* shaderSource, GLenum shaderType) {
     GLuint shader = glCreateShader(shaderType);
-    GL_CHECK(glShaderSource(shader, 1, &shaderSource, NULL));
-    GL_CHECK(glCompileShader(shader));
+    if (shader == 0) {
+        std::cerr << "ERROR::SHADER::CREATION_FAILED: Could not create shader." << std::endl;
+        return 0;
+    }
+
+    glShaderSource(shader, 1, &shaderSource, NULL);
+    glCompileShader(shader);
+    
     checkShaderCompileErrors(shader);
+
     return shader;
 }
 
@@ -152,7 +171,11 @@ inline GLuint loadTexture(const std::filesystem::path& imagepath) {
     std::vector<unsigned char> data(imageSize);
 
     // 读取图像数据到缓冲区中
-    fread(data.data(), 1, imageSize, file);
+    if (fread(data.data(), 1, imageSize, file) != imageSize) {
+        std::cerr << "Error reading image data: " << imagepath << std::endl;
+        fclose(file);
+        return 0;
+    }
 
     // 关闭文件
     fclose(file);
@@ -173,6 +196,14 @@ inline GLuint loadTexture(const std::filesystem::path& imagepath) {
     // 加载图像数据到纹理中，并生成 Mipmap
     gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGB, width, height, GL_BGR, GL_UNSIGNED_BYTE, data.data());
 
+    // 检查是否有OpenGL错误发生
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "OpenGL error: " << error << std::endl;
+        glDeleteTextures(1, &textureID); // 删除纹理以释放资源
+        return 0;
+    }
+
     std::cout << "Successfully loaded " << imagepath << std::endl;
 
     return textureID;
@@ -185,11 +216,19 @@ inline GLuint createShaderProgram(const GLchar* vertexSource, const GLchar* frag
     GLuint fragmentShader = loadShader(fragmentSource, GL_FRAGMENT_SHADER);
 
     GLuint program = glCreateProgram();
+    if (program == 0) {
+        std::cerr << "ERROR::SHADER::PROGRAM::CREATION_FAILED: Could not create shader program." << std::endl;
+        return 0;
+    }
+    
     GL_CHECK(glAttachShader(program, vertexShader));
     GL_CHECK(glAttachShader(program, fragmentShader));
     GL_CHECK(glLinkProgram(program));
+
+    // Check for linking errors
     checkProgramLinkErrors(program);
 
+    // Delete the shaders as they're linked into our program now and no longer necessery
     GL_CHECK(glDeleteShader(vertexShader));
     GL_CHECK(glDeleteShader(fragmentShader));
 
@@ -202,10 +241,16 @@ inline GLuint createShaderProgramFromFile(const std::string& vertexFilePath, con
     GLuint fragmentShader = loadShaderFromFile(fragmentFilePath, GL_FRAGMENT_SHADER);
 
     if (vertexShader == 0 || fragmentShader == 0) {
+        GL_CHECK(glDeleteShader(vertexShader));
+        GL_CHECK(glDeleteShader(fragmentShader));
         return 0;
     }
 
     GLuint program = glCreateProgram();
+    if (program == 0) {
+        std::cerr << "ERROR::SHADER::PROGRAM::CREATION_FAILED: Could not create shader program." << std::endl;
+        return 0;
+    }
     GL_CHECK(glAttachShader(program, vertexShader));
     GL_CHECK(glAttachShader(program, fragmentShader));
     GL_CHECK(glLinkProgram(program));

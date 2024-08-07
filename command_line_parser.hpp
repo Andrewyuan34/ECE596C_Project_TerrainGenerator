@@ -16,17 +16,17 @@ public:
     double getAmplitude() const;
     double getPersistence() const;
     double getLacunarity() const;
+    int getSeed() const;
+    int getWidth() const;
+    int getStep() const;
     bool isVerbose() const;
 
 private:
     po::options_description desc;
     po::variables_map vm;
 
-    double frequency;
-    int octave;
-    double amplitude;
-    double persistence;
-    double lacunarity;
+    double frequency, amplitude, persistence, lacunarity;
+    int octave, seed, width, step;
     bool verboseMode;
 };
 
