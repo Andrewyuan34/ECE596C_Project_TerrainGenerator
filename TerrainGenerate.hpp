@@ -3,27 +3,31 @@
 
 #include <vector>
 #include <GL/glew.h>
-#include "PerlinNoise.hpp"  // 确保你有一个 PerlinNoise 类来生成噪声
+#include "PerlinNoise.hpp"  
 
 class Terrain {
 public:
-    Terrain(int width, int height, int step);
+    Terrain(const int& width, int step, int seed);
     ~Terrain();
 
     void generateBaseTerrain(double frequency, int octave, double amplitude, double persistence, double lacunarity);
     void generateWater();
     void generateTerrainNormals();
-    void initTerrain();
-    GLuint getVAO() const;
-    
+    void initTerrain(const GLuint& shaderProgram);
+    const GLuint& getVAO() const;
+    const float& getWaterLevel() const;
+    const float& getWaterdepthMax() const;
+    const float& getHeightDif_low() const;
+    const float& getHeightDif_high() const;
 
     std::vector<GLfloat> vertices, verticesWithNormals;
     std::vector<GLuint> indices;
     GLuint VAO, VBO, EBO;
     int width, height, step;
-    float minHeight, maxHeight;
-    PerlinNoise perlinNoise(18, 4);
-    float waterLevel, HeightDif_low, HeightDif_high, waterdepthMax;
+    float minheight, maxheight;
+    PerlinNoise perlinNoise;
+    float waterLevel, heightDif_low, heightDif_high, waterdepthMax;
+    std::vector<float> height_map;
 };
 
 #endif // TERRAIN_H

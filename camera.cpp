@@ -60,7 +60,6 @@ void Camera::mouseMotion(int x, int y) {
         if (firstMouse) {
             lastX = xpos;
             lastY = ypos;
-            std::cout << "firstMouse" << std::endl;
             firstMouse = false;
         }
 

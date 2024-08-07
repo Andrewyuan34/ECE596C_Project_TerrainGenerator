@@ -18,7 +18,7 @@ public:
     std::vector<GLuint> getIndices();
     GLuint getVAO();
 
-private:
+
     GLuint cubeVAO, cubeVBO, cubeEBO;
     float radius;
     float lightPosY;

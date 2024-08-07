@@ -5,7 +5,7 @@
 
 class PerlinNoise {
 public:
-    PerlinNoise(int seed = 0, int init_octave = 10); //sadsadsadasdasddasdas
+    PerlinNoise(int seed = 0, int init_octave = 4); //sadsadsadasdasddasdas
 
     double noise(double x, double y , double z) const;
 

@@ -10,6 +10,7 @@
 #include "../camera.hpp"
 #include "../command_line_parser.hpp"
 #include "../lighting.hpp"
+#include "../TerrainGenerate.hpp"
 
 
 GLuint shaderProgram1;
@@ -17,7 +18,7 @@ GLuint cubeShaderProgram;
 GLuint VBO, VAO, EBO, texture1, texture2, texture3;
 std::vector<GLfloat> vertices;
 std::vector<GLuint> indices;
-PerlinNoise perlinNoise(18, 4); //asdddddddddddddddd
+PerlinNoise perlinNoise(18, 4); 
 float HeightDif_low = 0.0f;
 float HeightDif_high = 0.0f;
 float minHeight = std::numeric_limits<float>::max();
@@ -28,9 +29,12 @@ float waterdepthMax = 0.0f;
 float cameraDistance = 100.0f;
 float waterLevel = -5.0f; // 设置水平线高度
 
-const int WIDTH = 1024;
+const int WIDTH = 1024 * 8; //asssssssssssssssssss
 const int HEIGHT = WIDTH;
-const int step = WIDTH / 32;
+const int step = WIDTH / 512; //这个step暂时还是有用的！记住了！！！！！！暂时还不改
+//const int step = 2;
+//Terrain terrain(WIDTH, 32, 19);
+auto terrain = std::make_unique<Terrain>(WIDTH, 512, 18); 
 Lighting lighting(WIDTH * 0.1f, WIDTH / 30);
 Camera camera({0, 0, 100});
 float angle = 0.0f;
@@ -63,15 +67,15 @@ void init(double frequency, int octave, double amplitude, double persistence, do
         std::cerr << "Failed to initialize GLEW" << std::endl;
         return;
     }
-
-    // 加载并编译着色器
+    GLuint a = 0;
+    // 加载并编译着色器 *****************这里有一点内存泄露*******************
     shaderProgram1 = createShaderProgramFromFile("shader/sand_vertexShader.glsl", "shader/sand_fragmentShader.glsl");
     cubeShaderProgram = createShaderProgramFromFile("shader/cube_vertex_shader.glsl", "shader/cube_fragment_shader.glsl");
     if (shaderProgram1 == 0 || cubeShaderProgram == 0) {
         std::cerr << "Failed to create shader program" << std::endl;
         return;
     }
-
+    
     texture1 = loadTexture("Texture/grass.bmp");
     texture2 = loadTexture("Texture/sand.bmp");
 
@@ -80,6 +84,11 @@ void init(double frequency, int octave, double amplitude, double persistence, do
     GLint ambientLightLoc = glGetUniformLocation(shaderProgram1, "ambientLight");
     glUniform3f(ambientLightLoc, 0.3f, 0.3f, 0.3f); // 这里设置环境光为灰色，强度为 0.3
 
+    terrain->generateBaseTerrain(frequency, octave, amplitude, persistence, lacunarity);
+    terrain->generateWater();
+    terrain->generateTerrainNormals();
+
+/*
     std::vector<float> height_map(WIDTH * HEIGHT);
     int i = 0;
     int j = 0;
@@ -98,12 +107,13 @@ void init(double frequency, int octave, double amplitude, double persistence, do
         }
     }
 
-    //waterdepth = (waterLevel)
+    std::cout << "minHeight: " << minHeight << " terrain->minHeight" << terrain->minheight << " maxHeight: " << maxHeight << " terrain->maxHeight" << terrain->maxheight << "\n";
+
     waterLevel = ((maxHeight - minHeight) * 0.45f + minHeight); // 设置水面高度为地形高度的 40%
     HeightDif_low = (minHeight + ((maxHeight - minHeight)* 0.5f)) * WIDTH / 60.0f ; // 设置高度差下限
     HeightDif_high = (minHeight + ((maxHeight - minHeight)* 0.01f)) * WIDTH / 60.0f ; // 设置高度差上限
     waterdepthMax = (waterLevel - minHeight) * WIDTH / 60.0f;
-    
+
     i = 0;
     std::vector<GLfloat> vertices;
     for (int z = -HEIGHT / 2; z < HEIGHT / 2; z += step) {
@@ -118,15 +128,17 @@ void init(double frequency, int octave, double amplitude, double persistence, do
             // 添加纹理坐标
             vertices.push_back(2 * (static_cast<float>(x) + WIDTH / 2) / WIDTH);
             vertices.push_back(2 * (static_cast<float>(z) + HEIGHT / 2) / HEIGHT);
-
             // 添加地形高度（此时设置为0, 水面部分会在之后更新）
             vertices.push_back(scaledHeight);
         }
-        
     }
 
     j = 0;
     waterLevel = waterLevel * WIDTH / 60.0f;
+
+    if(waterLevel != terrain->waterLevel || HeightDif_low != terrain->getHeightDif_low() || HeightDif_high != terrain->getHeightDif_high() || waterdepthMax != terrain->getWaterdepthMax()){
+        std::cout << "waterLevel: " << waterLevel << " terrain->waterLevel: " << terrain->waterLevel << " waterdepthMax: " << waterdepthMax << " terrain->waterdepthMax: " << terrain->getWaterdepthMax() << " HeightDif_low: " << HeightDif_low << " terrain->getHeightDif_low: " << terrain->getHeightDif_low() << " HeightDif_high: " << HeightDif_high << " terrain->getHeightDif_high: " << terrain->getHeightDif_high() << "\n";
+    }
     // 生成水面平面的顶点数据和索引
     for (int z = -HEIGHT / 2; z < HEIGHT / 2; z += step) {
         for (int x = -WIDTH / 2; x < WIDTH / 2; x += step) {
@@ -169,7 +181,7 @@ void init(double frequency, int octave, double amplitude, double persistence, do
             indices.push_back(start + WIDTH / step);
             indices.push_back(start);
         }
-    }
+    } 
 
     // 计算顶点法线
     std::vector<GLfloat> normals;
@@ -187,19 +199,24 @@ void init(double frequency, int octave, double amplitude, double persistence, do
         verticesWithNormals.push_back(vertices[i * 6 + 3]); // u
         verticesWithNormals.push_back(vertices[i * 6 + 4]); // v
         verticesWithNormals.push_back(vertices[i * 6 + 5]); // height
-    }
-
+    }*/
+    
     // 生成并绑定VAO
-    GL_CHECK(glGenVertexArrays(1, &VAO));
-    GL_CHECK(glBindVertexArray(VAO));
+    /*GL_CHECK(glGenVertexArrays(1, &terrain->VAO));
+    GL_CHECK(glBindVertexArray(terrain->VAO));
 
-    GL_CHECK(glGenBuffers(1, &VBO));
-    GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, VBO));
-    GL_CHECK(glBufferData(GL_ARRAY_BUFFER, verticesWithNormals.size() * sizeof(GLfloat), verticesWithNormals.data(), GL_STATIC_DRAW));
+    GL_CHECK(glGenBuffers(1, &terrain->VBO));
+    GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, terrain->VBO));
+    GL_CHECK(glBufferData(GL_ARRAY_BUFFER, terrain->verticesWithNormals.size() * sizeof(GLfloat), terrain->verticesWithNormals.data(), GL_STATIC_DRAW));
+    std::vector<GLfloat>().swap(terrain->verticesWithNormals);
 
-    GL_CHECK(glGenBuffers(1, &EBO));
-    GL_CHECK(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO));
-    GL_CHECK(glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_STATIC_DRAW));
+
+
+    GL_CHECK(glGenBuffers(1, &terrain->EBO));
+    GL_CHECK(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, terrain->EBO));
+    GL_CHECK(glBufferData(GL_ELEMENT_ARRAY_BUFFER, terrain->indices.size() * sizeof(GLuint), terrain->indices.data(), GL_STATIC_DRAW));
+    std::vector<GLuint>().swap(terrain->indices); //asddddddddddddddddddddddddasssssssssssssssssssss
+    //std::cout << "success" << std::endl;
 
     GLint posAttrib = glGetAttribLocation(shaderProgram1, "aPos");
     GL_CHECK(glEnableVertexAttribArray(posAttrib));
@@ -217,8 +234,9 @@ void init(double frequency, int octave, double amplitude, double persistence, do
     GL_CHECK(glEnableVertexAttribArray(heightAttrib));
     GL_CHECK(glVertexAttribPointer(heightAttrib, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), (GLvoid*)(8 * sizeof(GLfloat))));
 
-    GL_CHECK(glBindVertexArray(0));
+    GL_CHECK(glBindVertexArray(0));*/
 
+    terrain->initTerrain(shaderProgram1);
 
     lighting.initCube();
 
@@ -271,6 +289,54 @@ void display() {
 
     // 传递水的高度
     GLint waterLevelLoc = glGetUniformLocation(shaderProgram1, "waterLevel");
+    glUniform1f(waterLevelLoc, terrain->getWaterLevel());
+
+    // 传递高度差的上下限
+    GLint HeightDif_lowLoc = glGetUniformLocation(shaderProgram1, "HeightDif_low");
+    glUniform1f(HeightDif_lowLoc, terrain->getHeightDif_low());
+    GLint HeightDif_highLoc = glGetUniformLocation(shaderProgram1, "HeightDif_high");
+    glUniform1f(HeightDif_highLoc, terrain->getHeightDif_high());
+
+    GLint waterdepthMaxLoc = glGetUniformLocation(shaderProgram1, "waterDepthMax");
+    glUniform1f(waterdepthMaxLoc, terrain->getWaterdepthMax());
+
+    // 设置光源和摄像机位置
+    GLint lightPosLoc = glGetUniformLocation(shaderProgram1, "lightPos");
+    glUniform3f(lightPosLoc, lighting.getmodelMatrix(12), lighting.getmodelMatrix(13), lighting.getmodelMatrix(14));
+    GLint viewPosLoc = glGetUniformLocation(shaderProgram1, "viewPos");
+    glUniform3f(viewPosLoc, camera.getCameraPos().x, camera.getCameraPos().y, camera.getCameraPos().z);
+
+    // 绘制地形
+    GLint useWaterTextureLoc = glGetUniformLocation(shaderProgram1, "useWaterTexture");
+    glUniform1i(useWaterTextureLoc, GL_FALSE); // 禁用水纹理
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture1);
+    glUniform1i(glGetUniformLocation(shaderProgram1, "texture1"), 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, texture2);
+    glUniform1i(glGetUniformLocation(shaderProgram1, "texture2"), 1);
+
+    // 根据 showWireframe 变量设置绘制模式
+    if (showWireframe) {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    } else {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
+
+    GL_CHECK(glBindVertexArray(terrain->getVAO()));
+    GL_CHECK(glDrawElements(GL_TRIANGLES, (HEIGHT / step - 1) * (WIDTH / step - 1) * 6, GL_UNSIGNED_INT, 0));
+    GL_CHECK(glBindVertexArray(0));
+
+    // 绘制水面
+    glUniform1i(useWaterTextureLoc, GL_TRUE); // 启用水纹理（尽管不使用纹理，我们仍然使用这个标志来控制渲染）
+
+    GL_CHECK(glBindVertexArray(terrain->getVAO()));
+    GL_CHECK(glDrawElements(GL_TRIANGLES, (HEIGHT / step - 1) * (WIDTH / step - 1) * 6, GL_UNSIGNED_INT, (GLvoid*)((HEIGHT / step - 1) * (WIDTH / step - 1) * 6 * sizeof(GLuint))));
+    GL_CHECK(glBindVertexArray(0));
+    /*
+    // 传递水的高度
+    GLint waterLevelLoc = glGetUniformLocation(shaderProgram1, "waterLevel");
     glUniform1f(waterLevelLoc, waterLevel);
 
     // 传递高度差的上下限
@@ -315,7 +381,7 @@ void display() {
 
     GL_CHECK(glBindVertexArray(VAO));
     GL_CHECK(glDrawElements(GL_TRIANGLES, (HEIGHT / step - 1) * (WIDTH / step - 1) * 6, GL_UNSIGNED_INT, (GLvoid*)((HEIGHT / step - 1) * (WIDTH / step - 1) * 6 * sizeof(GLuint))));
-    GL_CHECK(glBindVertexArray(0));
+    GL_CHECK(glBindVertexArray(0));*/
 
     // 在绘制光源小方块之前禁用面剔除和深度测试
     glDisable(GL_CULL_FACE);
@@ -350,6 +416,7 @@ void display() {
 
 
 void cleanup() {
+    
     deleteShaderProgram(shaderProgram1);
     deleteShaderProgram(cubeShaderProgram);
 
@@ -358,6 +425,13 @@ void cleanup() {
     GL_CHECK(glDeleteBuffers(1, &VBO));
     GL_CHECK(glDeleteBuffers(1, &EBO));
 
+    //glDeleteBuffers(1, &terrain.VBO);
+    //glDeleteBuffers(1, &terrain.VAO);
+    //glDeleteVertexArrays(1, &terrain.EBO);
+
+    glDeleteBuffers(1, &lighting.cubeVBO);
+    glDeleteBuffers(1, &lighting.cubeEBO);
+    glDeleteVertexArrays(1, &lighting.cubeVAO);
     // 删除纹理
     glDeleteTextures(1, &texture1);
     glDeleteTextures(1, &texture2);
