@@ -29,8 +29,9 @@ This program generates terrain using Perlin noise with customizable parameters.
 
 1. Clone the repository: `git clone <repository_url>`
 2. Navigate to the project directory: `cd cpp_project-yibo_yuan`
-3. Build the project: `cmake -H. -B build`
-4. Run the terrain generator with desired options: `./build/terrain_generator`
+3. Configure the project: `cmake -H. -B build`
+4. Build the project: `cmake --build build`
+5. Run the terrain generator with desired options: `./build/terrain_generator`
 
 Then you can adjust the command-line options as needed to customize the generated terrain.
 
