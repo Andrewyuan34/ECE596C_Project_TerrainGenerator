@@ -7,11 +7,12 @@
 
 class Lighting {
 public:
-    Lighting(float radius, float initialPosY);
+    Lighting();
     ~Lighting();
 
+    void init(float radius, float initialPosY);
     void updateLightPosition(float angle);
-    void initCube();
+    void initCube(const int& factor);
     GLfloat getmodelMatrix(int i);
     GLfloat* getmodelMatrix();
     std::vector<GLfloat> getVertices();

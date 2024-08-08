@@ -1,30 +1,42 @@
-cmake_minimum_required(VERSION 3.1)
-project(PerlinNoiseOpenGL)
+cmake_minimum_required(VERSION 3.10)
+project(Terrain_Generator)
 
-# 查找所需的 OpenGL 和 GLUT 库
+# Set C++ standard to C++20
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Find OpenGL, GLEW, GLUT libraries
 find_package(OpenGL REQUIRED)
+find_package(GLEW REQUIRED)
 find_package(GLUT REQUIRED)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+# Include Boost program_options
+find_package(Boost REQUIRED COMPONENTS program_options)
 
-set(GLM_INCLUDE_DIR "include/glm")
-
-# 列出源文件
-set(SOURCE_FILES
-    main4.cpp
-    PerlinNoise.cpp
-    PerlinNoise.hpp
-    #camera.cpp
-    #camera.hpp
+# Add executable target
+add_executable(terrain_generator
+    src/main.cpp
+    src/command_line_parser.cpp
+    src/camera.cpp
+    src/lighting.cpp
+    src/TerrainGenerate.cpp
 )
 
-# 创建可执行文件
-add_executable(perlin_noise_visualization ${SOURCE_FILES})
+# Include directories
+target_include_directories(terrain_generator PRIVATE
+    ${Boost_INCLUDE_DIRS}
+    ${OPENGL_INCLUDE_DIRS}
+    ${GLEW_INCLUDE_DIRS}
+    ${GLUT_INCLUDE_DIRS}
+    src  # Assuming your source headers are here
+)
 
-# 包含 OpenGL 和 GLUT 库
-include_directories(${OPENGL_INCLUDE_DIRS} ${GLUT_INCLUDE_DIRS} ${GLM_INCLUDE_DIR})
-
-# 链接 OpenGL 和 GLUT 库
-target_link_libraries(perlin_noise_visualization ${OPENGL_LIBRARIES} ${GLUT_LIBRARY} -lGL -lGLU -lglut)
+# Link libraries
+target_link_libraries(terrain_generator
+    ${Boost_LIBRARIES}
+    ${OPENGL_LIBRARIES}
+    ${GLEW_LIBRARIES}
+    ${GLUT_LIBRARIES}
+)
 
 

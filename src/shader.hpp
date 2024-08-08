@@ -10,26 +10,11 @@
 #include <sstream>
 #include <filesystem>
 
-
-//inline void checkGLError(const char* stmt, const char* fname, int line)
-//inline void printShaderInfoLog(GLuint shader)
-//inline void printProgramInfoLog(GLuint program)
-//inline void checkShaderCompileErrors(GLuint shader)
-//inline void checkProgramLinkErrors(GLuint program)
-//inline std::string readShaderSource(const std::string& filePath) ***
-//inline GLuint loadShader(const GLchar* shaderSource, GLenum shaderType)
-//inline GLuint loadShaderFromFile(const std::string& filePath, GLenum shaderType)
-//inline GLuint loadTexture(const std::filesystem::path& imagepath)
-//inline GLuint createShaderProgram(const GLchar* vertexSource, const GLchar* fragmentSource)***
-//inline GLuint createShaderProgramFromFile(const std::string& vertexFilePath, const std::string& fragmentFilePath)
-//inline void useShaderProgram(GLuint program) ***
-//inline void deleteShaderProgram(GLuint program) ***
-
-// 检查OpenGL错误
+// Check for OpenGL errors
 inline void checkGLError(const char* stmt, const char* fname, int line) {
     GLenum err = glGetError();
     if (err != GL_NO_ERROR) {
-        std::cerr << "OpenGL error " << err << " (" << gluErrorString(err) << "), at " << fname << ":" << line << " - for " << stmt << std::endl;
+        std::cerr << "OpenGL error " << err << " (" << gluErrorString(err) << "), at " << fname << ":" << line << " - for " << stmt << '\n';
         exit(1);
     }
 }
@@ -39,19 +24,18 @@ inline void checkGLError(const char* stmt, const char* fname, int line) {
     checkGLError(#stmt, __FILE__, __LINE__); \
 } while (0)
 
-// 打印着色器信息日志
+// Print shader information log
 inline void printShaderInfoLog(GLuint shader) {
     GLint infoLogLength = 0;
     glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLogLength);
     if (infoLogLength > 0) {
         std::vector<GLchar> infoLog(infoLogLength);
         glGetShaderInfoLog(shader, infoLogLength, &infoLogLength, &infoLog[0]);
-        std::cerr << "Shader InfoLog:" << std::endl << &infoLog[0] << std::endl;
+        std::cerr << "Shader InfoLog:" << '\n' << &infoLog[0] << '\n';
     }
 }
 
-// 打印程序信息日志
-// 检查着色器编译错误
+// Print program information log
 inline void checkShaderCompileErrors(GLuint shader) {
     GLint success;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
@@ -61,45 +45,36 @@ inline void checkShaderCompileErrors(GLuint shader) {
         if (logLength > 0) {
             std::string log(logLength, '\0');
             glGetShaderInfoLog(shader, logLength, NULL, &log[0]);
-            std::cerr << "ERROR::SHADER::COMPILATION_FAILED\n" << log << std::endl;
+            std::cerr << "ERROR::SHADER::COMPILATION_FAILED\n" << log << '\n';
         }
         glDeleteShader(shader); // Delete shader to free up resources
     }
 }
 
-// 检查着色器编译错误
-/*inline void checkShaderCompileErrors(GLuint shader) {
-    GLint success;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        printShaderInfoLog(shader);
-        std::cerr << "| ERROR::SHADER_COMPILATION_ERROR" << std::endl;
-    }
-}*/
-
-// 检查程序链接错误
+// Check for program linking errors
 inline void checkProgramLinkErrors(GLuint program) {
     GLint success;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (!success) {
         printShaderInfoLog(program);
-        std::cerr << "| ERROR::PROGRAM_LINKING_ERROR" << std::endl;
+        std::cerr << "| ERROR::PROGRAM_LINKING_ERROR" << '\n';
     }
 }
 
+// Read shader source from file
 inline std::string readShaderSource(const std::string& filePath) {
     std::ifstream shaderFile(filePath);
     std::stringstream shaderStream;
     
     if (!shaderFile.is_open()) {
-        std::cerr << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ: " << filePath << std::endl;
+        std::cerr << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ: " << filePath << '\n';
         return "";
     }
 
     shaderStream << shaderFile.rdbuf();
 
     if (shaderFile.fail()) {
-        std::cerr << "ERROR::SHADER::FAILED_TO_READ_DATA: " << filePath << std::endl;
+        std::cerr << "ERROR::SHADER::FAILED_TO_READ_DATA: " << filePath << '\n';
         shaderFile.close();
         return "";
     }
@@ -108,11 +83,11 @@ inline std::string readShaderSource(const std::string& filePath) {
     return shaderStream.str();
 }
 
-// 加载并编译着色器
+// Load shader and compile
 inline GLuint loadShader(const GLchar* shaderSource, GLenum shaderType) {
     GLuint shader = glCreateShader(shaderType);
     if (shader == 0) {
-        std::cerr << "ERROR::SHADER::CREATION_FAILED: Could not create shader." << std::endl;
+        std::cerr << "ERROR::SHADER::CREATION_FAILED: Could not create shader." << '\n';
         return 0;
     }
 
@@ -124,7 +99,7 @@ inline GLuint loadShader(const GLchar* shaderSource, GLenum shaderType) {
     return shader;
 }
 
-// 从文件加载着色器并编译
+// Load shader from file and compile
 inline GLuint loadShaderFromFile(const std::string& filePath, GLenum shaderType) {
     std::string shaderSource = readShaderSource(filePath);
     if (shaderSource.empty()) {
@@ -133,78 +108,78 @@ inline GLuint loadShaderFromFile(const std::string& filePath, GLenum shaderType)
     return loadShader(shaderSource.c_str(), shaderType);
 }
 
+// Load texture from file
 inline GLuint loadTexture(const std::filesystem::path& imagepath) {
-    std::cout << "Reading image " << imagepath << std::endl;
+    std::cout << "Reading image " << imagepath << '\n';
 
-    // 打开文件
     FILE* file = fopen(imagepath.string().c_str(), "rb");
     if (!file) {
-        std::cerr << "Image could not be opened: " << imagepath << std::endl;
+        std::cerr << "Image could not be opened: " << imagepath << '\n';
         return 0;
     }
 
-    // 读取文件头
+    // Load the BMP file header
     unsigned char header[54];
     if (fread(header, 1, 54, file) != 54) {
-        std::cerr << "Not a correct BMP file: " << imagepath << std::endl;
+        std::cerr << "Not a correct BMP file: " << imagepath << '\n';
         fclose(file);
         return 0;
     }
 
     if (header[0] != 'B' || header[1] != 'M') {
-        std::cerr << "Not a correct BMP file: " << imagepath << std::endl;
+        std::cerr << "Not a correct BMP file: " << imagepath << '\n';
         fclose(file);
         return 0;
     }
 
-    // 从文件头中获取图像信息
+    // Get image information
     unsigned int dataPos = *(int*)&(header[0x0A]);
     unsigned int imageSize = *(int*)&(header[0x22]);
     unsigned int width = *(int*)&(header[0x12]);
     unsigned int height = *(int*)&(header[0x16]);
 
-    // 一些BMP文件是没有指定图像大小的，这种情况下，我们可以计算出来
+    // Correct image size if it is not present in the header
     if (imageSize == 0) imageSize = width * height * 3;
     if (dataPos == 0) dataPos = 54;
 
-    // 创建缓冲区
+    // Set the file position to the beginning of the image data
     std::vector<unsigned char> data(imageSize);
 
-    // 读取图像数据到缓冲区中
+    // Load the image data
     if (fread(data.data(), 1, imageSize, file) != imageSize) {
-        std::cerr << "Error reading image data: " << imagepath << std::endl;
+        std::cerr << "Error reading image data: " << imagepath << '\n';
         fclose(file);
         return 0;
     }
 
-    // 关闭文件
+    // Close the file
     fclose(file);
 
-    // 创建一个OpenGL纹理
+    // Create OpenGL texture
     GLuint textureID;
     glGenTextures(1, &textureID);
 
-    // 绑定纹理
+    // Bind the texture
     glBindTexture(GL_TEXTURE_2D, textureID);
 
-    // 给纹理设定参数并生成 Mipmap
+    // Set the texture wrapping/filtering options (on the currently bound texture object)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); // 设置为使用 Mipmap 的线性过滤器
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    // 加载图像数据到纹理中，并生成 Mipmap
+    // Load and generate the texture
     gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGB, width, height, GL_BGR, GL_UNSIGNED_BYTE, data.data());
 
-    // 检查是否有OpenGL错误发生
+    // Check for OpenGL errors
     GLenum error = glGetError();
     if (error != GL_NO_ERROR) {
-        std::cerr << "OpenGL error: " << error << std::endl;
-        glDeleteTextures(1, &textureID); // 删除纹理以释放资源
+        std::cerr << "OpenGL error: " << error << '\n';
+        glDeleteTextures(1, &textureID); // Delete the texture to free up resources
         return 0;
     }
 
-    std::cout << "Successfully loaded " << imagepath << std::endl;
+    std::cout << "Successfully loaded " << imagepath << '\n';
 
     return textureID;
 }
@@ -217,7 +192,7 @@ inline GLuint createShaderProgram(const GLchar* vertexSource, const GLchar* frag
 
     GLuint program = glCreateProgram();
     if (program == 0) {
-        std::cerr << "ERROR::SHADER::PROGRAM::CREATION_FAILED: Could not create shader program." << std::endl;
+        std::cerr << "ERROR::SHADER::PROGRAM::CREATION_FAILED: Could not create shader program." << '\n';
         return 0;
     }
     
@@ -248,7 +223,7 @@ inline GLuint createShaderProgramFromFile(const std::string& vertexFilePath, con
 
     GLuint program = glCreateProgram();
     if (program == 0) {
-        std::cerr << "ERROR::SHADER::PROGRAM::CREATION_FAILED: Could not create shader program." << std::endl;
+        std::cerr << "ERROR::SHADER::PROGRAM::CREATION_FAILED: Could not create shader program." << '\n';
         return 0;
     }
     GL_CHECK(glAttachShader(program, vertexShader));

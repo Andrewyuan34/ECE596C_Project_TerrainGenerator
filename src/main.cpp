@@ -5,12 +5,12 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
-#include "../shader.hpp"
-#include "../PerlinNoise.cpp"
-#include "../camera.hpp"
-#include "../command_line_parser.hpp"
-#include "../lighting.hpp"
-#include "../TerrainGenerate.hpp"
+#include "shader.hpp"
+#include "PerlinNoise.cpp"
+#include "camera.hpp"
+#include "command_line_parser.hpp"
+#include "lighting.hpp"
+#include "TerrainGenerate.hpp"
 
 const int WIDTH = 1024; 
 
@@ -43,8 +43,8 @@ void init(double frequency, int octave, double amplitude, double persistence, do
     }
 
     // Load the textures
-    texture1 = loadTexture("Texture/grass.bmp");
-    texture2 = loadTexture("Texture/sand.bmp");
+    texture1 = loadTexture("texture/grass.bmp");
+    texture2 = loadTexture("texture/sand.bmp");
 
     // Generate vertices, indices and normals for the terrain
     terrain->generateBaseTerrain(frequency, octave, amplitude, persistence, lacunarity);

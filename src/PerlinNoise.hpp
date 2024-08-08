@@ -5,7 +5,7 @@
 
 class PerlinNoise {
 public:
-    PerlinNoise(int seed = 0, int init_octave = 4); //sadsadsadasdasddasdas
+    PerlinNoise(int seed = 0, int init_octave = 4); 
 
     double noise(double x, double y , double z) const;
 
@@ -16,10 +16,9 @@ public:
 
     void setOctave(int newOctave) { octave = newOctave; }
     int getOctave() const { return octave; }
+    void initialize(const int& seed);
 
 private:
-    void initialize(int seed);
-
     double fade(double t) const;
     double lerp(double t, double a, double b) const;
     double grad(int hash, double x, double y, double z) const;

@@ -1,7 +1,6 @@
 #include "lighting.hpp"
 
-Lighting::Lighting(float radius, float initialPosY) 
-            : radius(radius), lightPosY(initialPosY){}
+Lighting::Lighting(){}
 
 Lighting::~Lighting() {
     glDeleteBuffers(1, &cubeVBO);
@@ -9,12 +8,19 @@ Lighting::~Lighting() {
     glDeleteVertexArrays(1, &cubeVAO);
 }
 
-void Lighting::updateLightPosition(float angle) {
-    modelMatrix[12] = radius * cos(angle);
-    modelMatrix[14] = radius * sin(angle);
+void Lighting::init(float radius_, float initialPosY_) {
+    radius = radius_; 
+    lightPosY = initialPosY_;
+    modelMatrix[12] = radius; // Initial light position x
+    modelMatrix[13] = lightPosY; // Initial light position y
 }
 
-void Lighting::initCube() {
+void Lighting::updateLightPosition(float angle) {
+    modelMatrix[12] = radius * cos(angle); // Update light position x
+    modelMatrix[14] = radius * sin(angle); // Update light position z
+}
+
+void Lighting::initCube(const int& factor) {
     // Cube vertices and indices
     cubeVertices = {
         -0.5f, -0.5f, -0.5f, 
@@ -26,6 +32,13 @@ void Lighting::initCube() {
          0.5f,  0.5f,  0.5f, 
         -0.5f,  0.5f,  0.5f
     };
+
+    // Scale the cube according to the factor
+    for (size_t i = 0; i < cubeVertices.size(); ++i) {
+        cubeVertices[i] *= factor;
+    } 
+    
+    // Indices of the cube
     cubeIndices = {
         0, 1, 2,
         2, 3, 0,
@@ -41,6 +54,7 @@ void Lighting::initCube() {
         5, 4, 0
     };
 
+    // Generate and bind the VAO, EBO and VBO
     glGenVertexArrays(1, &cubeVAO);
     glBindVertexArray(cubeVAO);
 

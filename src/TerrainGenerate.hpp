@@ -7,9 +7,10 @@
 
 class Terrain {
 public:
-    Terrain(const int& width, int step, int seed);
+    Terrain();
     ~Terrain();
 
+    void init(const int& width, const int& step, const int& seed);
     void generateBaseTerrain(double frequency, int octave, double amplitude, double persistence, double lacunarity);
     void generateWater();
     void generateTerrainNormals();
@@ -19,7 +20,11 @@ public:
     const float& getWaterdepthMax() const;
     const float& getHeightDif_low() const;
     const float& getHeightDif_high() const;
+    const int& getWidth() const;
+    const int& getHeight() const;
+    const int& getStep() const;
 
+private:
     std::vector<GLfloat> vertices, verticesWithNormals;
     std::vector<GLuint> indices;
     GLuint VAO, VBO, EBO;

@@ -10,12 +10,14 @@ const int PerlinNoise::gradientVectors[12][3] = {
     {1, 0, 1}, {-1, 0, 1}, {0, 1, 1}, {0, -1, 1}
 };
 
+// Constructor
 PerlinNoise::PerlinNoise(int seed, int init_octave) 
                         : octave(init_octave) {
     initialize(seed);
 }
 
-void PerlinNoise::initialize(int seed) {
+// Initialize the permutation table
+void PerlinNoise::initialize(const int& seed) {
     p.resize(permutationTableSize);
     std::iota(p.begin(), p.end(), 0);
     std::mt19937 mt(seed);
@@ -23,6 +25,7 @@ void PerlinNoise::initialize(int seed) {
     p.insert(p.end(), p.begin(), p.end());
 }
 
+// Generate the noise value at a given position
 double PerlinNoise::noise(double x, double y, double z) const {
     int X = (int)std::floor(x) & 255;
     int Y = (int)std::floor(y) & 255;
@@ -49,13 +52,10 @@ double PerlinNoise::noise(double x, double y, double z) const {
 	return (res + 1.0)/2.0;
 }
 
+// Generate the noise value at a given position with multiple octaves
 double PerlinNoise::generateNoise(double x, double y, double z, double frequency, double amplitude, int octave
                                     , double persistence, double lacunarity) {
     double noiseValue = 0.0;
-    //double frequency = 2.0;
-    //double amplitude = 0.6;
-    //double persistence = 0.5;  // Adjust persistence (typically in the range of 0.4 to 0.6)
-    //double lacunarity = 2.0;   // Adjust lacunarity (typically around 2.0)
     double maxAmplitude = 0.0;
 
     for (int i = 0; i < octave; ++i) {
@@ -68,8 +68,7 @@ double PerlinNoise::generateNoise(double x, double y, double z, double frequency
         frequency *= lacunarity;
         amplitude *= persistence;
     }
-    //std:: cout << "maxAmplitude: " << maxAmplitude << "amplitude: " << amplitude << "octave: " << octave << "\n";
-    //std:: cout << "amplitude * octave / 2: " << amplitude * octave / 2 << "\n";
+
     // Mapping the result to the range of -1 to 1
     noiseValue /= maxAmplitude;
     noiseValue = 2.0 * noiseValue - 1.0;
@@ -77,8 +76,8 @@ double PerlinNoise::generateNoise(double x, double y, double z, double frequency
     return noiseValue * maxAmplitude;
 }
 
+// for the boundary points, the height is always set to above the water level 
 double PerlinNoise::adjustNoiseForTerrainShape(double noiseValue, double x, double z, double width, double height, int step, double waterLevel) {
-    // for the boundary points, the height is always set to above the water level 
     if (x == width / 2 - step || z == height / 2 - step || x == - width / 2 || z == - width / 2) {
         if(noiseValue < waterLevel) {
             noiseValue = (waterLevel - noiseValue) * 0.2 + waterLevel;
@@ -90,15 +89,17 @@ double PerlinNoise::adjustNoiseForTerrainShape(double noiseValue, double x, doub
 }
 
 
-
+// Fade function
 double PerlinNoise::fade(double t) const {
     return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
+// Linear interpolation
 double PerlinNoise::lerp(double t, double a, double b) const {
     return a + t * (b - a);
 }
 
+// Gradient function
 double PerlinNoise::grad(int hash, double x, double y, double z) const {
     int h = hash & 11;
     double u = gradientVectors[h][0];

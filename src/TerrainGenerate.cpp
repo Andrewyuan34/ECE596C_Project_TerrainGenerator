@@ -6,13 +6,9 @@
 #include "math.hpp"
 #include "shader.hpp"
 
-Terrain::Terrain(const int& width, int step, int seed)
-    : width(width), height(width), step(width / step), 
-    minheight(std::numeric_limits<float>::max()), maxheight(std::numeric_limits<float>::min()), 
-    perlinNoise(seed){
-        vertices.reserve(width * height * 12 / (step * step));
-        indices.reserve(width * height * 12 / (step * step));
-        height_map.reserve(width * height / (step * step));
+Terrain::Terrain()
+    : minheight(std::numeric_limits<float>::max()), maxheight(std::numeric_limits<float>::min()), 
+    perlinNoise(0){
     }
 
 Terrain::~Terrain() {
@@ -21,14 +17,25 @@ Terrain::~Terrain() {
     glDeleteVertexArrays(1, &VAO);
 }
 
+// Initialize the terrain
+void Terrain::init(const int& width_, const int& step_, const int& seed_){
+    width = width_;
+    height = width_;
+    step = step_;
+    perlinNoise.initialize(seed_);
+    vertices.reserve(width * height * 12 / (step * step));
+    indices.reserve(width * height * 12 / (step * step));
+    height_map.reserve(width * height / (step * step)); 
+}
+
+//Generate vertices and indices for the terrain
 void Terrain::generateBaseTerrain(double frequency, int octave, double amplitude, double persistence, double lacunarity) {
     int i = 0;
-    //int j = 0;
 
     std::vector<float> height_array;
     height_array.reserve(width * height / (step * step));
 
-    // 生成地形顶点数据和索引
+    // Generate the terrain height values
     for (int z = -height / 2; z < height / 2; z += step) {
         for (int x = -width / 2; x < width / 2; x += step) {
             float nx = static_cast<float>(x) / width;
@@ -40,11 +47,11 @@ void Terrain::generateBaseTerrain(double frequency, int octave, double amplitude
         }
     }
 
-    waterLevel = ((maxheight - minheight) * 0.35f + minheight); // 设置水面高度为地形高度的 40%
-    heightDif_low = (minheight + ((maxheight - minheight)* 0.4f)) * width / 60.0f ; // 设置高度差下限
-    heightDif_high = heightDif_low * 0.1 ; // 设置高度差上限
+    waterLevel = ((maxheight - minheight) * 0.35f + minheight); // Set the water level
+    heightDif_low = (minheight + ((maxheight - minheight)* 0.4f)) * width / 60.0f ; // Set the height difference lower limit
+    heightDif_high = heightDif_low * 0.1 ; // Set the height difference upper limit
     waterdepthMax = (waterLevel - minheight) * width / 60.0f;
-    std::cout << minheight * width / 60.0f << " " << maxheight * width / 60.0f << " " << heightDif_low << " " << heightDif_high << std::endl;
+    
     i = 0;
     for (int z = -height / 2; z < height / 2; z += step) {
         for (int x = -width / 2; x < width / 2; x += step) {
@@ -83,6 +90,7 @@ void Terrain::generateBaseTerrain(double frequency, int octave, double amplitude
     }
 }
 
+// Generate vertices and indices for the water plane
 void Terrain::generateWater(){
     int j = 0;
     waterLevel = waterLevel * width / 60.0f;
@@ -90,15 +98,15 @@ void Terrain::generateWater(){
     // Generate the water plane vertices, following the same pattern as the terrain
     for (int z = -height / 2; z < height / 2; z += step) {
         for (int x = -width / 2; x < width / 2; x += step) {
-            vertices.push_back(x * 0.1f); // 宽度缩放
-            vertices.push_back(waterLevel); // 固定高度为水平面
-            vertices.push_back(z * 0.1f); // 深度缩放
+            vertices.push_back(x * 0.1f); // scale x
+            vertices.push_back(waterLevel); // fixed waterlevel
+            vertices.push_back(z * 0.1f); // scale z
 
-            // 添加纹理坐标
+            // add texture coordinates
             vertices.push_back((static_cast<float>(x) + width / 2) / width);
             vertices.push_back((static_cast<float>(z) + height / 2) / height);
 
-            // 添加地形高度，用于判断是否显示水面
+            // add the height for the terrain, used to determine if the water should be displayed
             vertices.push_back(height_map[j++]);
         }
     }
@@ -119,6 +127,7 @@ void Terrain::generateWater(){
     }
 }
 
+// Generate the normals and overall buffer for the terrain
 void Terrain::generateTerrainNormals(){
     // Calculate the normals for the terrain
     std::vector<GLfloat> normals;
@@ -139,9 +148,10 @@ void Terrain::generateTerrainNormals(){
     vertices.shrink_to_fit();
 }
 
+
+// Initialize the terrain
 void Terrain::initTerrain(const GLuint& shaderProgram){
-    // 生成并绑定VAO
-    
+    // Generate and bind the terrain vertices and indices
     GL_CHECK(glGenVertexArrays(1, &VAO));
     GL_CHECK(glBindVertexArray(VAO));
 
@@ -191,4 +201,16 @@ const float& Terrain::getHeightDif_low() const {
 
 const float& Terrain::getHeightDif_high() const {
     return heightDif_high;
+}
+
+const int& Terrain::getWidth() const {
+    return width;
+}
+
+const int& Terrain::getHeight() const {
+    return height;
+}
+
+const int& Terrain::getStep() const {
+    return step;
 }

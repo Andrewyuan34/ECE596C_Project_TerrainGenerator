@@ -16,6 +16,7 @@ public:
 
     Vec getCameraPos() const;
     Vec getCameraFront() const;
+    const bool& getShowWireframe() const;
 
 private:
     Vec cameraPos;
@@ -28,6 +29,7 @@ private:
     bool firstMouse;
     float yaw, pitch;
     const float moveSpeed = 0.07f;
+    bool showWireframe = false;
 };
 
 #endif // CAMERA_H
