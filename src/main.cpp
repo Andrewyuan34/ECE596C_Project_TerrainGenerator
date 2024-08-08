@@ -20,7 +20,7 @@ GLuint texture1, texture2;
 
 static auto terrain = std::make_unique<Terrain>(); 
 static auto lighting = std::make_unique<Lighting>(); 
-Camera camera({0, 0, WIDTH});
+static Camera camera({0, 0, WIDTH});
 float angle = 0.0f;
 
 std::chrono::time_point<std::chrono::high_resolution_clock> lastTime;
@@ -112,6 +112,8 @@ void display() {
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluPerspective(45.0f, 800.0f / 600.0f, 10.0f, 10000.0f);
+
+    // Get the projection matrix
     GLdouble projectionMatrixD[16];
     glGetDoublev(GL_PROJECTION_MATRIX, projectionMatrixD);
     GLfloat projectionMatrix[16];
@@ -122,8 +124,9 @@ void display() {
     glLoadIdentity();
     gluLookAt(camera.getCameraPos().x, camera.getCameraPos().y, camera.getCameraPos().z,  
                 camera.getCameraPos().x + camera.getCameraFront().x, camera.getCameraPos().y + camera.getCameraFront().y, camera.getCameraPos().z + camera.getCameraFront().z,  // 目标位置 (x, y, z)
-              0.0f, 1.0f, 0.0f); 
+              camera.getCameraUp().x, camera.getCameraUp().y, camera.getCameraUp().z); 
 
+    // Get the view matrix
     GLdouble viewMatrixD[16];
     glGetDoublev(GL_MODELVIEW_MATRIX, viewMatrixD);
     GLfloat viewMatrix[16];
@@ -131,15 +134,10 @@ void display() {
 
     // Switch to the terrain shader program
     useShaderProgram(TerrainShaderProgram);
-    GLint projLoc = glGetUniformLocation(TerrainShaderProgram, "projectionMatrix");
-    glUniformMatrix4fv(projLoc, 1, GL_FALSE, projectionMatrix);
-    GLint viewLoc = glGetUniformLocation(TerrainShaderProgram, "viewMatrix");
-    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, viewMatrix);
 
     // Set the diffuse light related properties
     GLint lightPosLoc = glGetUniformLocation(TerrainShaderProgram, "lightPos");
     glUniform3f(lightPosLoc, lighting->getmodelMatrix(12), lighting->getmodelMatrix(13), lighting->getmodelMatrix(14));
-
 
     GLint useWaterTextureLoc = glGetUniformLocation(TerrainShaderProgram, "useWaterTexture");
     glUniform1i(useWaterTextureLoc, GL_FALSE); // Forbid using water texture

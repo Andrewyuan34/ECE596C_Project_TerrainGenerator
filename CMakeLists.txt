@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR) 
 project(Terrain_Generator)
 
 # Set C++ standard to C++20
@@ -28,7 +28,7 @@ target_include_directories(terrain_generator PRIVATE
     ${OPENGL_INCLUDE_DIRS}
     ${GLEW_INCLUDE_DIRS}
     ${GLUT_INCLUDE_DIRS}
-    src  # Assuming your source headers are here
+    src  
 )
 
 # Link libraries

@@ -16,12 +16,12 @@ This program generates terrain using Perlin noise with customizable parameters.
 
 ## Controls
 
-- **WSAD**: Horizontal movement (up, down, left, right).
-- **R**: Move vertically up.
-- **F**: Move vertically down.
-- **1**: Toggle grid mode.
-- **2**: Rotate light source clockwise.
-- **3**: Rotate light source counterclockwise.
+- **'W''S''A''D'**: Horizontal movement (forward, backward, left, right).
+- **'R'**: Move vertically up.
+- **'F'**: Move vertically down.
+- **'1'**: Toggle grid mode.
+- **'2'**: Rotate light source clockwise.
+- **'3'**: Rotate light source counterclockwise.
 - **Mouse Scroll Wheel**: Move forward/backward along current view direction.
 - **Hold Middle Mouse Button (Scroll Wheel)**: Control view direction by moving the mouse.
 

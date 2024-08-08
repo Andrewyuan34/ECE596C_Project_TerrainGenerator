@@ -16,6 +16,7 @@ public:
 
     Vec getCameraPos() const;
     Vec getCameraFront() const;
+    Vec getCameraUp() const;
     const bool& getShowWireframe() const;
 
 private:

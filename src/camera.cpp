@@ -121,7 +121,14 @@ Vec Camera::getCameraFront() const
     return cameraFront;
 }
 
+Vec Camera::getCameraUp() const
+{
+    return cameraUp;
+}
+
 const bool &Camera::getShowWireframe() const
 {
     return showWireframe;
 }
+
+
