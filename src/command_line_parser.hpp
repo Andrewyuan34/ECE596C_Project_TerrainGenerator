@@ -19,7 +19,6 @@ public:
     int getSeed() const;
     int getWidth() const;
     int getStep() const;
-    bool isVerbose() const;
 
 private:
     po::options_description desc;
@@ -27,7 +26,6 @@ private:
 
     double frequency, amplitude, persistence, lacunarity;
     int octave, seed, width, step;
-    bool verboseMode;
 };
 
 #endif // COMMAND_LINE_PARSER_H

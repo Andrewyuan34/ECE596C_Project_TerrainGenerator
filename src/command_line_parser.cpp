@@ -8,8 +8,7 @@ CommandLineParser::CommandLineParser()
       octave(10),
       amplitude(0.8),
       persistence(0.5),
-      lacunarity(2.0),
-      verboseMode(false) {
+      lacunarity(2.0) {
     desc.add_options()
         ("help,h", "produce help message")
         ("frequency,f", po::value<double>(&frequency)->default_value(3.0), "set frequency   Range: 1~5       Step: 1") // around 3 looks good
@@ -19,8 +18,7 @@ CommandLineParser::CommandLineParser()
         ("lacunarity,l", po::value<double>(&lacunarity)->default_value(2.0), "set lacunarity  Range: 1~3       Step: 0.1") // around 2 looks good
         ("width,w", po::value<int>(&width)->default_value(6), "set width Range: 1~13   Step: 1" ) // The larger the width, the more detailed the terrain
         ("step,t", po::value<int>(&step)->default_value(1), "set step Range: 0~5   Step:1" )// The larger the step, the less detailed the terrain
-        ("seed,s", po::value<int>(&seed)->default_value(42), "set seed")
-        ("verbose,v", po::bool_switch(&verboseMode), "enable verbose mode");
+        ("seed,s", po::value<int>(&seed)->default_value(42), "set seed");
 }
 
 void CommandLineParser::parse(int argc, char* argv[]) {
@@ -80,10 +78,6 @@ double CommandLineParser::getPersistence() const {
 
 double CommandLineParser::getLacunarity() const {
     return lacunarity;
-}
-
-bool CommandLineParser::isVerbose() const {
-    return verboseMode;
 }
 
 int CommandLineParser::getSeed() const {
