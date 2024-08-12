@@ -1,0 +1,7 @@
+/home/yiboy/Desktop/cpp_project-yibo_yuan/tmp_cmake/CMakeFiles/terrain_generator.dir
+/home/yiboy/Desktop/cpp_project-yibo_yuan/tmp_cmake/CMakeFiles/edit_cache.dir
+/home/yiboy/Desktop/cpp_project-yibo_yuan/tmp_cmake/CMakeFiles/rebuild_cache.dir
+/home/yiboy/Desktop/cpp_project-yibo_yuan/tmp_cmake/CMakeFiles/list_install_components.dir
+/home/yiboy/Desktop/cpp_project-yibo_yuan/tmp_cmake/CMakeFiles/install.dir
+/home/yiboy/Desktop/cpp_project-yibo_yuan/tmp_cmake/CMakeFiles/install/local.dir
+/home/yiboy/Desktop/cpp_project-yibo_yuan/tmp_cmake/CMakeFiles/install/strip.dir

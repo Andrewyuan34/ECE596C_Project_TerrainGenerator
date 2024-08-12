@@ -1,0 +1,7 @@
+name "Yibo Yuan"
+student_id "V01031325"
+email "yiboy@uvic.ca"
+term "2024-05"
+course "ECE596C"
+section "T01"
+assignment " cpp_project"

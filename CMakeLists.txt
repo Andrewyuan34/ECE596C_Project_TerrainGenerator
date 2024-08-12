@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10 FATAL_ERROR) 
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 project(Terrain_Generator)
 
 # Set C++ standard to C++20
@@ -28,7 +28,7 @@ target_include_directories(terrain_generator PRIVATE
     ${OPENGL_INCLUDE_DIRS}
     ${GLEW_INCLUDE_DIRS}
     ${GLUT_INCLUDE_DIRS}
-    src  
+    src
 )
 
 # Link libraries
@@ -39,4 +39,8 @@ target_link_libraries(terrain_generator
     ${GLUT_LIBRARIES}
 )
 
+# Install the terrain_generator executable to the bin directory.
+install(TARGETS terrain_generator DESTINATION bin)
 
+# Install the demo script to the bin directory.
+install(PROGRAMS demo DESTINATION bin)
