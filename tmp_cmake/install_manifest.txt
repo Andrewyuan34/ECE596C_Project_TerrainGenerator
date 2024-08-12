@@ -1,2 +1,0 @@
-/home/yiboy/Desktop/test/bin/terrain_generator
-/home/yiboy/Desktop/test/bin/demo
