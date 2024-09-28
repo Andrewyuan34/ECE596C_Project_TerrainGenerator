@@ -2,6 +2,8 @@
 
 This program generates terrain using Perlin noise with customizable parameters.
 
+Youtube link: https://www.youtube.com/watch?v=ewlBOwm4k9o
+
 ## Command-line Options
 
 - `-h, --help`: Produce help message.
