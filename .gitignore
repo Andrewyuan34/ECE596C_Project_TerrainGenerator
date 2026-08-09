@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+# ---- Project-local toolchain & build artifacts (never commit) ----
+.toolchain/
+build/
+out/
+.vs/
+.vscode/
+CMakeUserPresets.json
