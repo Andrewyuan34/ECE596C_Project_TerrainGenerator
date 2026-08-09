@@ -1,0 +1,52 @@
+#! /usr/bin/env bash
+
+# Print an error message and exit.
+panic()
+{
+    echo "ERROR: $@"
+    exit 1
+}
+
+# Get the directory in which the currently running script is located.
+cmd_dir=$(dirname "$0") || panic "cannot determine command directory"
+
+# Define the paths to the terrain_generator executable
+terrain_generator="$cmd_dir/terrain_generator"
+
+# Check if terrain_generator exists
+[ -f "$terrain_generator" ] || panic "terrain_generator executable not found in $cmd_dir"
+
+echo "Running Terrain Generator Demo..."
+echo ""
+
+# Display the command-line options
+echo "1. Displaying command-line options..."
+echo ""
+$terrain_generator -h || panic "Failed to display command-line options"
+
+# Run terrain_generator with default settings
+echo ""
+echo "2. Generating terrain with default settings..."
+
+$terrain_generator || panic "terrain_generator failed with default settings"
+
+# Run terrain_generator with width set to 13
+echo ""
+echo "3. Generating terrain with width set to 13..."
+
+$terrain_generator -w 13 || panic "terrain_generator failed with width set to 13"
+
+# Run terrain_generator with width set to 13 and detail level set to 5
+echo ""
+echo "4. Generating terrain with width set to 13 and detail level set to 5..."
+
+$terrain_generator -w 13 -d 5 || panic "terrain_generator failed with width set to 13 and detail level set to 5"
+
+# Run terrain_generator with width set to 13, detail level set to 5, and seed set to 100
+echo ""
+echo "5. Generating terrain with width set to 13, detail level set to 5, and seed set to 100..."
+
+$terrain_generator -w 13 -d 5 -s 100 || panic "terrain_generator failed with width set to 13, detail level set to 5, and seed set to 100"
+
+echo "Terrain Generator Demo completed successfully."
+
