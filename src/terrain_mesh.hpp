@@ -18,7 +18,7 @@ struct TerrainParams {
     int           lod   = 1;  // level of detail, range [0, 5]
 };
 
-// Interleaved vertex layout shared by the terrain and the water plane:
+// Interleaved vertex layout shared by the terrain and the water pass:
 // position (3) | normal (3) | uv (2) | world-space terrain height (1).
 struct Vertex {
     glm::vec3 position;
@@ -36,8 +36,9 @@ struct TerrainMesh {
     std::vector<Vertex>        vertices;
     std::vector<std::uint32_t> indices;
 
-    // indices[0, terrainIndexCount) draws the terrain;
-    // indices[terrainIndexCount, indices.size()) draws the water plane.
+    // The same index range draws both terrain and water. The water pass lifts
+    // vertices to waterLevel in the vertex shader while retaining `height`
+    // for shoreline clipping in the fragment shader.
     std::size_t terrainIndexCount = 0;
 
     float waterLevel    = 0.0f;  // world-space Y of the water surface

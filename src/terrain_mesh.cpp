@@ -79,7 +79,7 @@ TerrainMesh generateTerrain(const TerrainParams& params) {
     };
 
     // 5) Terrain vertices.
-    mesh.vertices.reserve(n * n * 2);
+    mesh.vertices.reserve(n * n);
     for (std::size_t j = 0; j < n; ++j) {
         const float z = (-worldSize / 2 + static_cast<int>(j) * step) * kXZScale;
         for (std::size_t i = 0; i < n; ++i) {
@@ -95,40 +95,19 @@ TerrainMesh generateTerrain(const TerrainParams& params) {
         }
     }
 
-    // 6) Water plane vertices. Normals point straight up; the height
-    //    attribute carries the *terrain* height so the fragment shader can
-    //    discard water fragments that would hover above land.
-    for (std::size_t j = 0; j < n; ++j) {
-        const float z = (-worldSize / 2 + static_cast<int>(j) * step) * kXZScale;
-        for (std::size_t i = 0; i < n; ++i) {
-            const float x = (-worldSize / 2 + static_cast<int>(i) * step) * kXZScale;
-            mesh.vertices.push_back(Vertex{
-                .position = {x, mesh.waterLevel, z},
-                .normal   = {0.0f, 1.0f, 0.0f},
-                .uv       = {static_cast<float>(i) / static_cast<float>(n),
-                             static_cast<float>(j) / static_cast<float>(n)},
-                .height   = hmap[j, i],
-            });
-        }
-    }
-
-    // 7) Indices: terrain block first, then the water block (same winding
-    //    as the original project; rendered with glFrontFace(GL_CW)).
-    const auto emitGrid = [&](std::uint32_t base) {
-        for (std::uint32_t j = 0; j + 1 < n; ++j) {
-            for (std::uint32_t i = 0; i + 1 < n; ++i) {
-                const std::uint32_t start = base + j * static_cast<std::uint32_t>(n) + i;
-                for (std::uint32_t idx : {start, start + 1, start + static_cast<std::uint32_t>(n) + 1,
-                                          start + static_cast<std::uint32_t>(n) + 1,
-                                          start + static_cast<std::uint32_t>(n), start}) {
-                    mesh.indices.push_back(idx);
-                }
+    // 6) A single index grid is reused by the terrain and water passes. The
+    //    vertex shader lifts the existing positions to the water level.
+    for (std::uint32_t j = 0; j + 1 < n; ++j) {
+        for (std::uint32_t i = 0; i + 1 < n; ++i) {
+            const std::uint32_t start = j * static_cast<std::uint32_t>(n) + i;
+            for (std::uint32_t idx : {start, start + 1, start + static_cast<std::uint32_t>(n) + 1,
+                                      start + static_cast<std::uint32_t>(n) + 1,
+                                      start + static_cast<std::uint32_t>(n), start}) {
+                mesh.indices.push_back(idx);
             }
         }
-    };
-    emitGrid(0);
+    }
     mesh.terrainIndexCount = mesh.indices.size();
-    emitGrid(static_cast<std::uint32_t>(n * n));
 
     return mesh;
 }

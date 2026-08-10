@@ -137,6 +137,11 @@ std::expected<void, std::string> Application::loadAssets() {
                           reinterpret_cast<void*>(offsetof(Vertex, height)));
     gl::VertexArray::unbind();
 
+    // GPU buffers now own the render data. Retain only mesh metadata on the
+    // CPU so high LODs do not keep a second copy of large vertex/index arrays.
+    std::vector<Vertex>{}.swap(mesh_.vertices);
+    std::vector<std::uint32_t>{}.swap(mesh_.indices);
+
     // --- Light-source cube ---
     gpu_->cubeVao.bind();
     gpu_->cubeVbo.upload(GL_ARRAY_BUFFER, std::span<const float>{kCubeVertices});
@@ -246,10 +251,8 @@ void Application::renderFrame() {
                    GL_UNSIGNED_INT, nullptr);
 
     shader.set("uDrawWater", true);
-    glDrawElements(GL_TRIANGLES,
-                   static_cast<GLsizei>(mesh_.indices.size() - mesh_.terrainIndexCount),
-                   GL_UNSIGNED_INT,
-                   reinterpret_cast<void*>(mesh_.terrainIndexCount * sizeof(std::uint32_t)));
+    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(mesh_.terrainIndexCount),
+                   GL_UNSIGNED_INT, nullptr);
     gl::VertexArray::unbind();
 
     // --- Light-source cube (always visible: no culling, no depth test) ---
