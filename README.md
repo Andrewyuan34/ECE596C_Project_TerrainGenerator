@@ -39,14 +39,21 @@ rem 3. 便携 Ninja(解压到 ninja\)
 curl -L -o ninja.zip https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip
 ```
 
+glad2 还需要固定版本的 Python 依赖。解压上述工具后,将依赖安装到
+项目内的本地工具链:
+
+```bat
+scripts\bootstrap-python.bat
+```
+
 > 网络受限时可先设置代理:`set https_proxy=http://127.0.0.1:7897`
 
 ## 构建与运行
 
 ```bat
 scripts\env.bat
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+cmake --preset release
+cmake --build --preset release
 cd build
 terrain_generator.exe
 ```

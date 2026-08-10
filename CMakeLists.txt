@@ -18,24 +18,43 @@ set(GLFW_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL        OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(glfw
-    URL "https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip")
+    URL "https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip"
+    URL_HASH SHA256=b5ec004b2712fd08e8861dc271428f048775200a2df719ccf575143ba749a3e9
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 
 FetchContent_Declare(glm
-    URL "https://github.com/g-truc/glm/archive/refs/tags/1.0.1.zip")
+    URL "https://github.com/g-truc/glm/archive/refs/tags/1.0.1.zip"
+    URL_HASH SHA256=09c5716296787e1f7fcb87b1cbdbf26814ec1288ed6259ccd30d5d9795809fa5
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 
 FetchContent_Declare(CLI11
-    URL "https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.4.2.zip")
+    URL "https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.4.2.zip"
+    URL_HASH SHA256=43e650d5e1a3acaaf419d1e61a81f77b408d0696f472be0599ddf877d40984b0
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 
 FetchContent_Declare(glad
-    URL "https://github.com/Dav1dde/glad/archive/refs/heads/glad2.zip")
+    # Pinned instead of following the mutable glad2 branch.
+    URL "https://github.com/Dav1dde/glad/archive/e3c14f906127dea49ead20ff4d5878294d08b7ab.zip"
+    URL_HASH SHA256=882cc167a31421b910e3846b40fdc9ca2469e5a9054bab980a94435151b1cf79
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 
 FetchContent_MakeAvailable(glfw glm CLI11 glad)
 
 # glad2 keeps its CMake integration in the cmake/ subdirectory.
 add_subdirectory("${glad_SOURCE_DIR}/cmake" glad_cmake)
 
-# Generate an OpenGL 3.3 Core loader (requires a Python interpreter).
-glad_add_library(glad_gl_core_33 STATIC API gl:core=3.3)
+# Generate an OpenGL 3.3 Core loader from glad's bundled registry snapshots.
+# REPRODUCIBLE prevents network access to mutable Khronos XML files.
+find_package(Python 3.8 COMPONENTS Interpreter REQUIRED)
+execute_process(
+    COMMAND "${Python_EXECUTABLE}" -c "import jinja2"
+    RESULT_VARIABLE TERRAIN_JINJA2_STATUS
+    OUTPUT_QUIET ERROR_QUIET)
+if (NOT TERRAIN_JINJA2_STATUS EQUAL 0)
+    message(FATAL_ERROR
+        "glad requires Jinja2. Run scripts/bootstrap-python.bat, then scripts/env.bat.")
+endif()
+glad_add_library(glad_gl_core_33 STATIC REPRODUCIBLE API gl:core=3.3)
 
 # ---- Target -----------------------------------------------------------------
 add_executable(terrain_generator
