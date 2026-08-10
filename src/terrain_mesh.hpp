@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <array>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -30,15 +31,35 @@ struct Vertex {
 static_assert(sizeof(Vertex) == 9 * sizeof(float),
               "Vertex must stay tightly packed for glVertexAttribPointer");
 
+inline constexpr std::size_t kTerrainLodCount = 3;
+inline constexpr std::size_t kTerrainChunkEdgeCount = 4;
+
+struct DrawRange {
+    std::size_t firstIndex = 0;
+    std::size_t indexCount = 0;
+};
+
+// A chunk owns no vertices; it references the shared height-field vertex
+// buffer through three progressively coarser index ranges.
+struct TerrainChunk {
+    glm::vec3 boundsMin{0.0f};
+    glm::vec3 boundsMax{0.0f};
+    std::array<DrawRange, kTerrainLodCount> lods{};
+    // Edge order: north (-Z), south (+Z), west (-X), east (+X).
+    std::array<std::array<DrawRange, kTerrainChunkEdgeCount>,
+               kTerrainLodCount> skirts{};
+    std::array<std::int32_t, kTerrainChunkEdgeCount> neighbors{-1, -1, -1, -1};
+};
+
 // Pure CPU-side mesh data. No OpenGL types appear here; the renderer owns
 // the GPU upload. This keeps mesh generation independent of the render API.
 struct TerrainMesh {
     std::vector<Vertex>        vertices;
     std::vector<std::uint32_t> indices;
+    std::vector<TerrainChunk>  chunks;
 
-    // The same index range draws both terrain and water. The water pass lifts
-    // vertices to waterLevel in the vertex shader while retaining `height`
-    // for shoreline clipping in the fragment shader.
+    // Total number of indices across every chunk's finest range. The same
+    // chunk ranges draw terrain and water; water is lifted in the shader.
     std::size_t terrainIndexCount = 0;
 
     float waterLevel    = 0.0f;  // world-space Y of the water surface

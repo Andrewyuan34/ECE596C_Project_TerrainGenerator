@@ -7,6 +7,7 @@
 - 数学:GLM
 - 命令行:CLI11
 - 调试界面:Dear ImGui(运行时调参并重新生成)
+- 大地形优化:32×32 单元分块、AABB 视锥裁剪、3 级距离 LOD(含防裂缝 skirts)
 - 构建:CMake(≥ 3.28)+ Ninja,依赖全部由 **FetchContent** 拉取
 - 编译器:MSVC、GCC 或 Clang(标准库需支持 C++23 `std::expected`)
 
@@ -116,7 +117,8 @@ src/
   perlin_noise.{hpp,cpp}  Perlin 噪声 + fBm
   terrain_mesh.{hpp,cpp}  纯 CPU 网格生成(不含任何 GL 类型)
   camera.{hpp,cpp}   FPS 相机(delta-time 移动 + 鼠标视角)
-  gl_raii.hpp        OpenGL 句柄的 move-only RAII 封装 + expected 加载器
+  frustum.{hpp,cpp}  视锥平面提取与 AABB 可见性判断
+  gl_raii.{hpp,cpp}  OpenGL 句柄的 move-only RAII 封装 + expected 加载器
   application.{hpp,cpp}   窗口、输入、主循环、渲染
 shader/              GLSL 330 core 着色器
 texture/             BMP 纹理

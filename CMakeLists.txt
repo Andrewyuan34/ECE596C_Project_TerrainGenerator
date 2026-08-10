@@ -80,6 +80,7 @@ set(TERRAIN_GENERATOR_SOURCES
     src/perlin_noise.cpp
     src/terrain_mesh.cpp
     src/camera.cpp
+    src/frustum.cpp
     src/gl_raii.cpp
     src/application.cpp
 )
@@ -146,6 +147,7 @@ if (BUILD_TESTING)
         src/cli.cpp
         src/perlin_noise.cpp
         src/terrain_mesh.cpp
+        src/frustum.cpp
     )
     target_include_directories(terrain_core_tests PRIVATE src)
     target_link_libraries(terrain_core_tests PRIVATE glm::glm CLI11::CLI11)

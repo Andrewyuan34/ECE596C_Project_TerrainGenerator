@@ -1,4 +1,5 @@
 #include "cli.hpp"
+#include "frustum.hpp"
 #include "perlin_noise.hpp"
 #include "terrain_mesh.hpp"
 
@@ -9,6 +10,8 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace {
 
@@ -53,8 +56,9 @@ void testTerrainInvariants() {
     constexpr std::size_t grid = 32;
     constexpr std::size_t expectedIndices = 6 * (grid - 1) * (grid - 1);
     check(mesh.vertices.size() == grid * grid, "LOD 0 vertex count");
-    check(mesh.indices.size() == expectedIndices, "LOD 0 index count");
-    check(mesh.terrainIndexCount == mesh.indices.size(), "shared draw index count");
+    check(mesh.chunks.size() == 1u, "LOD 0 terrain fits in one chunk");
+    check(mesh.terrainIndexCount == expectedIndices, "finest chunk index count");
+    check(mesh.indices.size() > expectedIndices, "coarser index ranges are generated");
     check(mesh.worldSize == 2048, "width controls world extent");
     check(mesh.minHeight <= mesh.waterLevel && mesh.waterLevel <= mesh.maxHeight,
           "water level must be inside the terrain height range");
@@ -70,9 +74,61 @@ void testTerrainInvariants() {
     });
     check(normalsValid, "all normals must be finite unit vectors");
 
+    const tg::TerrainChunk& chunk = mesh.chunks.front();
+    check(chunk.lods[0].firstIndex == 0u, "first chunk range starts at zero");
+    check(chunk.lods[0].indexCount == expectedIndices, "LOD 0 range size");
+    check(chunk.lods[0].indexCount > chunk.lods[1].indexCount &&
+          chunk.lods[1].indexCount > chunk.lods[2].indexCount,
+          "distance LOD ranges become progressively coarser");
+    for (std::size_t lod = 0; lod < tg::kTerrainLodCount; ++lod) {
+        const tg::DrawRange range = chunk.lods[lod];
+        check(range.firstIndex + range.indexCount <= mesh.indices.size(),
+              "chunk draw range stays inside the index buffer");
+    }
+
     const tg::TerrainMesh repeated = tg::generateTerrain(params);
     check(mesh.vertices.front().height == repeated.vertices.front().height,
           "terrain generation must be deterministic");
+}
+
+void testTerrainChunking() {
+    tg::TerrainParams params;
+    params.width = 2;
+    params.lod = 1;
+    const tg::TerrainMesh mesh = tg::generateTerrain(params);
+    check(mesh.chunks.size() == 4u, "64x64 grid splits into four chunks");
+    check(mesh.vertices.size() > 64u * 64u, "internal chunk edges receive skirt vertices");
+
+    std::size_t finestIndices = 0u;
+    for (const tg::TerrainChunk& chunk : mesh.chunks) {
+        check(glm::all(glm::lessThanEqual(chunk.boundsMin, chunk.boundsMax)),
+              "chunk AABB is ordered");
+        finestIndices += chunk.lods[0].indexCount;
+        for (std::size_t lod = 0; lod < tg::kTerrainLodCount; ++lod) {
+            const tg::DrawRange range = chunk.lods[lod];
+            check(range.firstIndex + range.indexCount <= mesh.indices.size(),
+                  "every chunk LOD references a valid index range");
+            for (const tg::DrawRange skirt : chunk.skirts[lod])
+                check(skirt.firstIndex + skirt.indexCount <= mesh.indices.size(),
+                      "every chunk skirt references a valid index range");
+        }
+    }
+    check(mesh.terrainIndexCount == finestIndices,
+          "mesh finest-index total matches its chunk ranges");
+}
+
+void testFrustumCulling() {
+    const glm::mat4 viewProjection =
+        glm::perspective(glm::radians(90.0f), 1.0f, 1.0f, 10.0f) *
+        glm::lookAt(glm::vec3{0.0f}, glm::vec3{0.0f, 0.0f, -1.0f},
+                    glm::vec3{0.0f, 1.0f, 0.0f});
+    const tg::Frustum frustum = tg::Frustum::fromViewProjection(viewProjection);
+    check(frustum.intersectsAabb({-0.5f, -0.5f, -3.0f}, {0.5f, 0.5f, -2.0f}),
+          "box inside the view frustum is visible");
+    check(!frustum.intersectsAabb({20.0f, -0.5f, -3.0f}, {21.0f, 0.5f, -2.0f}),
+          "box outside a side plane is culled");
+    check(!frustum.intersectsAabb({-0.5f, -0.5f, 2.0f}, {0.5f, 0.5f, 3.0f}),
+          "box behind the camera is culled");
 }
 
 void testCliValidation() {
@@ -94,6 +150,8 @@ void testCliValidation() {
 int main() {
     testPerlinDeterminism();
     testTerrainInvariants();
+    testTerrainChunking();
+    testFrustumCulling();
     testCliValidation();
     if (failures == 0)
         std::cout << "All core tests passed\n";

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <expected>
 #include <filesystem>
 #include <memory>
@@ -83,8 +84,16 @@ private:
     int    frameCount_    = 0;
     double lastGenerationMs_ = 0.0;
 
+    std::array<std::size_t, kTerrainLodCount> visibleLodCounts_{};
+    std::size_t visibleChunkCount_    = 0;
+    std::size_t visibleTriangleCount_ = 0;
+    float lodNearDistance_ = 0.0f;
+    float lodFarDistance_  = 0.0f;
+
     bool   imguiInitialized_   = false;
     bool   showControls_       = true;
+    bool   frustumCulling_      = true;
+    bool   distanceLod_         = true;
     bool   middleButtonPressed_ = false;
     bool   firstMouse_          = true;
     double lastMouseX_          = 0.0;

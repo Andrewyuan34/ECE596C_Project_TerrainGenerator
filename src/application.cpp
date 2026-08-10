@@ -1,4 +1,5 @@
 #include "application.hpp"
+#include "frustum.hpp"
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
@@ -12,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -49,10 +51,16 @@ constexpr std::uint32_t kCubeIndices[] = {
 
 Application::Application(CliOptions options)
     : options_(std::move(options)),
-      camera_(glm::vec3{0.0f, 300.0f, 700.0f}, -90.0f, -18.0f) {
+      camera_(glm::vec3{0.0f,
+                        static_cast<float>(1024 * options_.terrain.width) * 0.05f,
+                        static_cast<float>(1024 * options_.terrain.width) * 0.114f},
+              -90.0f, -18.0f) {
     const float worldSize = static_cast<float>(1024 * options_.terrain.width);
     lightRadius_ = worldSize * 0.1f;
     lightHeight_ = worldSize / 30.0f;
+    const float renderedExtent = worldSize * 0.1f;
+    lodNearDistance_ = renderedExtent * 0.6f;
+    lodFarDistance_ = renderedExtent * 1.5f;
     updateLight();
 }
 
@@ -139,7 +147,7 @@ std::expected<void, std::string> Application::loadAssets() {
     mesh_ = generateTerrain(options_.terrain);
     gpu_.emplace();
 
-    // --- Terrain mesh (terrain + water share one VAO / two index ranges) ---
+    // --- Terrain mesh (terrain + water share one VAO / chunk index ranges) ---
     uploadTerrainMesh();
 
     // --- Light-source cube ---
@@ -243,6 +251,7 @@ std::expected<void, std::string> Application::initInterface() {
 
 void Application::regenerateTerrain() {
     const double start = glfwGetTime();
+    const float previousExtent = static_cast<float>(mesh_.worldSize) * 0.1f;
     mesh_ = generateTerrain(options_.terrain);
     uploadTerrainMesh();
     updateTerrainUniforms();
@@ -250,6 +259,12 @@ void Application::regenerateTerrain() {
     lightRadius_ = worldSize * 0.1f;
     lightHeight_ = worldSize / 30.0f;
     updateLight();
+    if (previousExtent > 0.0f) {
+        const float distanceScale = worldSize * 0.1f / previousExtent;
+        camera_.scalePosition(distanceScale);
+        lodNearDistance_ *= distanceScale;
+        lodFarDistance_ *= distanceScale;
+    }
     lastGenerationMs_ = (glfwGetTime() - start) * 1000.0;
 }
 
@@ -335,12 +350,22 @@ void Application::renderControls() {
     ImGui::SeparatorText("View");
     ImGui::Checkbox("Wireframe", &camera_.wireframe);
     ImGui::SliderFloat("Camera speed", &camera_.moveSpeed, 25.0f, 1500.0f, "%.0f");
+    ImGui::Checkbox("Frustum culling", &frustumCulling_);
+    ImGui::Checkbox("Distance LOD", &distanceLod_);
+    if (distanceLod_) {
+        ImGui::DragFloat("LOD 0 distance", &lodNearDistance_, 1.0f, 10.0f, 10000.0f, "%.0f");
+        ImGui::DragFloat("LOD 1 distance", &lodFarDistance_, 1.0f, 11.0f, 20000.0f, "%.0f");
+        lodFarDistance_ = std::max(lodFarDistance_, lodNearDistance_ + 1.0f);
+    }
 
     if (ImGui::Button("Regenerate terrain"))
         regenerateTerrain();
     ImGui::SameLine();
     ImGui::TextDisabled("F1 hides this panel");
-    ImGui::Text("Triangles: %zu", mesh_.terrainIndexCount / 3u);
+    ImGui::Text("Visible chunks: %zu / %zu", visibleChunkCount_, mesh_.chunks.size());
+    ImGui::Text("LOD 0 / 1 / 2: %zu / %zu / %zu",
+                visibleLodCounts_[0], visibleLodCounts_[1], visibleLodCounts_[2]);
+    ImGui::Text("Visible triangles: %zu", visibleTriangleCount_);
     if (lastGenerationMs_ > 0.0)
         ImGui::Text("Last generation: %.1f ms", lastGenerationMs_);
     ImGui::End();
@@ -360,7 +385,82 @@ void Application::renderFrame() {
         glm::perspective(glm::radians(45.0f), aspect, 10.0f, 10000.0f) *
         camera_.viewMatrix();
 
-    // --- Terrain, then water (second index range, alpha-blended) ---
+    struct VisibleDraw {
+        std::size_t chunkIndex = 0;
+        DrawRange range;
+        float distance = 0.0f;
+        std::size_t lod = 0;
+    };
+    std::vector<VisibleDraw> visible;
+    visible.reserve(mesh_.chunks.size());
+    std::vector<std::int8_t> selectedLods(mesh_.chunks.size(), -1);
+    visibleLodCounts_.fill(0u);
+    visibleTriangleCount_ = 0u;
+
+    const Frustum frustum = Frustum::fromViewProjection(viewProj);
+    for (std::size_t chunkIndex = 0; chunkIndex < mesh_.chunks.size(); ++chunkIndex) {
+        const TerrainChunk& chunk = mesh_.chunks[chunkIndex];
+        if (frustumCulling_ && !frustum.intersectsAabb(chunk.boundsMin, chunk.boundsMax))
+            continue;
+
+        const glm::vec3 nearest = glm::clamp(camera_.position(),
+                                             chunk.boundsMin, chunk.boundsMax);
+        const float distance = glm::length(camera_.position() - nearest);
+        std::size_t lod = 0u;
+        if (distanceLod_) {
+            if (distance >= lodFarDistance_)
+                lod = 2u;
+            else if (distance >= lodNearDistance_)
+                lod = 1u;
+        }
+        const DrawRange range = chunk.lods[lod];
+        visible.push_back({.chunkIndex = chunkIndex, .range = range,
+                           .distance = distance, .lod = lod});
+        selectedLods[chunkIndex] = static_cast<std::int8_t>(lod);
+        ++visibleLodCounts_[lod];
+        visibleTriangleCount_ += range.indexCount / 3u;
+    }
+    visibleChunkCount_ = visible.size();
+
+    for (const VisibleDraw& draw : visible) {
+        const TerrainChunk& chunk = mesh_.chunks[draw.chunkIndex];
+        for (std::size_t edge = 0; edge < kTerrainChunkEdgeCount; ++edge) {
+            const std::int32_t neighbor = chunk.neighbors[edge];
+            if (neighbor >= 0 && selectedLods[static_cast<std::size_t>(neighbor)] >= 0 &&
+                static_cast<std::size_t>(selectedLods[static_cast<std::size_t>(neighbor)]) !=
+                    draw.lod) {
+                visibleTriangleCount_ += chunk.skirts[draw.lod][edge].indexCount / 3u;
+            }
+        }
+    }
+
+    // Back-to-front order is required by the transparent water pass and is
+    // also valid for the opaque, depth-tested terrain pass.
+    std::ranges::sort(visible, std::greater{}, &VisibleDraw::distance);
+    const auto drawRange = [](const DrawRange& range) {
+        const std::uintptr_t byteOffset = range.firstIndex * sizeof(std::uint32_t);
+        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(range.indexCount),
+                       GL_UNSIGNED_INT, reinterpret_cast<const void*>(byteOffset));
+    };
+    const auto drawVisible = [&visible, &drawRange] {
+        for (const VisibleDraw& draw : visible)
+            drawRange(draw.range);
+    };
+    const auto drawLodSeams = [this, &visible, &selectedLods, &drawRange] {
+        for (const VisibleDraw& draw : visible) {
+            const TerrainChunk& chunk = mesh_.chunks[draw.chunkIndex];
+            for (std::size_t edge = 0; edge < kTerrainChunkEdgeCount; ++edge) {
+                const std::int32_t neighbor = chunk.neighbors[edge];
+                if (neighbor >= 0 && selectedLods[static_cast<std::size_t>(neighbor)] >= 0 &&
+                    static_cast<std::size_t>(selectedLods[static_cast<std::size_t>(neighbor)]) !=
+                        draw.lod) {
+                    drawRange(chunk.skirts[draw.lod][edge]);
+                }
+            }
+        }
+    };
+
+    // --- Visible terrain chunks, then their alpha-blended water surfaces ---
     auto& shader = gpu_->terrainShader;
     shader.use();
     shader.set("uViewProj", viewProj);
@@ -371,12 +471,11 @@ void Application::renderFrame() {
     gpu_->terrainVao.bind();
 
     shader.set("uDrawWater", false);
-    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(mesh_.terrainIndexCount),
-                   GL_UNSIGNED_INT, nullptr);
+    drawVisible();
+    drawLodSeams();
 
     shader.set("uDrawWater", true);
-    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(mesh_.terrainIndexCount),
-                   GL_UNSIGNED_INT, nullptr);
+    drawVisible();
     gl::VertexArray::unbind();
 
     // --- Light-source cube (always visible: no culling, no depth test) ---

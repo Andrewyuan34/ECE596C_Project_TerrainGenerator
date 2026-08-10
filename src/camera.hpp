@@ -28,6 +28,9 @@ public:
     // Scroll wheel: glide along the current view direction.
     void glide(float amount) noexcept;
 
+    // Preserve the same relative viewpoint when the terrain extent changes.
+    void scalePosition(float factor) noexcept { position_ *= factor; }
+
     [[nodiscard]] glm::mat4 viewMatrix() const noexcept;
     [[nodiscard]] const glm::vec3& position() const noexcept { return position_; }
 
