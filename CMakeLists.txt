@@ -77,13 +77,20 @@ target_link_libraries(terrain_generator PRIVATE
 
 target_compile_options(terrain_generator PRIVATE /W4 /permissive- /utf-8 /EHsc)
 
-# Runtime assets (shaders / textures) are copied next to the executable.
-add_custom_command(TARGET terrain_generator POST_BUILD
+# Runtime assets (shaders / textures) are synchronized on every build so an
+# asset-only edit cannot leave a stale copy beside an up-to-date executable.
+add_custom_target(terrain_assets ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/shader" "$<TARGET_FILE_DIR:terrain_generator>/shader"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/texture" "$<TARGET_FILE_DIR:terrain_generator>/texture"
+    COMMENT "Synchronizing runtime assets"
 )
+add_dependencies(terrain_generator terrain_assets)
+
+include(GNUInstallDirs)
+install(TARGETS terrain_generator RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+install(DIRECTORY shader texture DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 # ---- Tests ------------------------------------------------------------------
 include(CTest)

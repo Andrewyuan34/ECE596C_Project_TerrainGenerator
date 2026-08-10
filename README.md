@@ -58,6 +58,13 @@ cd build
 terrain_generator.exe
 ```
 
+运行时资源会从可执行文件所在目录解析,因此构建完成后也可以从任意工作目录直接运行
+`build\terrain_generator.exe`。安装包可用以下命令生成:
+
+```bat
+cmake --install build --prefix install
+```
+
 着色器和纹理会在构建后自动拷贝到可执行文件旁边,因此请在 `build\` 目录下运行。
 
 ## 命令行选项

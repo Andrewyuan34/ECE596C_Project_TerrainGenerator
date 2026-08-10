@@ -6,6 +6,11 @@ namespace tg {
 
 std::expected<CliOptions, int> parseCommandLine(int argc, char** argv) {
     CliOptions opts;
+    std::error_code pathError;
+    const auto executable = std::filesystem::weakly_canonical(
+        std::filesystem::absolute(argv[0], pathError), pathError);
+    opts.assetRoot = pathError ? std::filesystem::current_path()
+                               : executable.parent_path();
     CLI::App app{"Procedural terrain generator (Perlin noise + OpenGL 3.3 Core)"};
     app.set_help_flag("-h,--help", "Print this help message and exit");
 

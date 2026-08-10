@@ -155,20 +155,24 @@ std::expected<void, std::string> Application::loadAssets() {
     gl::VertexArray::unbind();
 
     // --- Shaders ---
-    auto terrainShader = gl::loadProgram("shader/terrain.vert", "shader/terrain.frag");
+    const auto shaderDir = options_.assetRoot / "shader";
+    const auto textureDir = options_.assetRoot / "texture";
+    auto terrainShader = gl::loadProgram(shaderDir / "terrain.vert",
+                                         shaderDir / "terrain.frag");
     if (!terrainShader) return std::unexpected{std::move(terrainShader).error()};
     gpu_->terrainShader = std::move(*terrainShader);
 
-    auto cubeShader = gl::loadProgram("shader/light_cube.vert", "shader/light_cube.frag");
+    auto cubeShader = gl::loadProgram(shaderDir / "light_cube.vert",
+                                      shaderDir / "light_cube.frag");
     if (!cubeShader) return std::unexpected{std::move(cubeShader).error()};
     gpu_->cubeShader = std::move(*cubeShader);
 
     // --- Textures ---
-    auto grass = gl::loadBmpTexture("texture/grass.bmp");
+    auto grass = gl::loadBmpTexture(textureDir / "grass.bmp");
     if (!grass) return std::unexpected{std::move(grass).error()};
     gpu_->grassTexture = std::move(*grass);
 
-    auto sand = gl::loadBmpTexture("texture/sand.bmp");
+    auto sand = gl::loadBmpTexture(textureDir / "sand.bmp");
     if (!sand) return std::unexpected{std::move(sand).error()};
     gpu_->sandTexture = std::move(*sand);
 
