@@ -28,6 +28,7 @@ namespace tg {
 
 namespace {
 constexpr float kFogExtentMultiplier = 3.0f;
+constexpr float kTimeChangeSpeed     = 1.5f;   // in-world hours per second
 constexpr float kScrollGlideFactor  = 0.25f;  // fraction of moveSpeed per tick
 
 constexpr glm::vec3 kNightZenith{0.015f, 0.025f, 0.080f};
@@ -46,6 +47,13 @@ constexpr glm::vec3 kDayAmbient{0.300f, 0.340f, 0.400f};
 float smoothstep(float edge0, float edge1, float value) noexcept {
     const float t = std::clamp((value - edge0) / (edge1 - edge0), 0.0f, 1.0f);
     return t * t * (3.0f - 2.0f * t);
+}
+
+float wrapTimeOfDay(float value) noexcept {
+    float wrapped = std::fmod(value, 24.0f);
+    if (wrapped < 0.0f)
+        wrapped += 24.0f;
+    return wrapped;
 }
 } // namespace
 
@@ -284,6 +292,14 @@ void Application::mainLoop() {
                 .down    = pressed(GLFW_KEY_F) || pressed(GLFW_KEY_LEFT_SHIFT),
             }, dt);
 
+            const float timeDirection =
+                (pressed(GLFW_KEY_3) ? 1.0f : 0.0f) -
+                (pressed(GLFW_KEY_2) ? 1.0f : 0.0f);
+            if (timeDirection != 0.0f) {
+                environment_.timeOfDay = wrapTimeOfDay(
+                    environment_.timeOfDay + timeDirection * kTimeChangeSpeed * dt);
+                updateEnvironment();
+            }
         }
 
         renderFrame();
@@ -325,6 +341,19 @@ void Application::renderControls() {
     ImGui::SeparatorText("Mesh");
     ImGui::SliderInt("Width", &terrain.width, 1, 13);
     ImGui::SliderInt("Detail", &terrain.lod, 0, 5);
+
+    ImGui::SeparatorText("Environment");
+    bool environmentChanged = false;
+    environmentChanged |= ImGui::SliderFloat(
+        "Time of day", &environment_.timeOfDay, 0.0f, 24.0f, "%.1f h");
+    environmentChanged |= ImGui::SliderFloat(
+        "Sun arc height", &environment_.maxSunElevationDegrees,
+        15.0f, 80.0f, "%.0f deg");
+    environmentChanged |= ImGui::SliderFloat(
+        "Light intensity", &environment_.lightIntensity, 0.0f, 2.0f, "%.2f");
+    if (environmentChanged)
+        updateEnvironment();
+    ImGui::TextDisabled("2 / 3 changes time");
 
     ImGui::SeparatorText("View");
     ImGui::Checkbox("Wireframe", &camera_.wireframe);
