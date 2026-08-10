@@ -57,13 +57,26 @@ endif()
 glad_add_library(glad_gl_core_33 STATIC REPRODUCIBLE API gl:core=3.3)
 
 # ---- Target -----------------------------------------------------------------
-add_executable(terrain_generator
+set(TERRAIN_GENERATOR_SOURCES
     src/main.cpp
     src/cli.cpp
     src/perlin_noise.cpp
     src/terrain_mesh.cpp
     src/camera.cpp
     src/application.cpp
+)
+file(GLOB TERRAIN_PROJECT_HEADERS CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp")
+
+# Ninja cannot parse localized MSVC /showIncludes output on every Windows
+# locale. Explicit project-header dependencies keep incremental builds correct
+# without depending on diagnostic language or code page.
+set_source_files_properties(${TERRAIN_GENERATOR_SOURCES}
+    PROPERTIES OBJECT_DEPENDS "${TERRAIN_PROJECT_HEADERS}")
+
+add_executable(terrain_generator
+    ${TERRAIN_GENERATOR_SOURCES}
+    ${TERRAIN_PROJECT_HEADERS}
 )
 
 target_include_directories(terrain_generator PRIVATE src)
@@ -95,6 +108,8 @@ install(DIRECTORY shader texture DESTINATION "${CMAKE_INSTALL_BINDIR}")
 # ---- Tests ------------------------------------------------------------------
 include(CTest)
 if (BUILD_TESTING)
+    set_source_files_properties(tests/core_tests.cpp
+        PROPERTIES OBJECT_DEPENDS "${TERRAIN_PROJECT_HEADERS}")
     add_executable(terrain_core_tests
         tests/core_tests.cpp
         src/cli.cpp
