@@ -17,6 +17,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -115,11 +116,14 @@ public:
     ShaderProgram(const ShaderProgram&) = delete;
     ShaderProgram& operator=(const ShaderProgram&) = delete;
 
-    ShaderProgram(ShaderProgram&& other) noexcept : id_(std::exchange(other.id_, 0)) {}
+    ShaderProgram(ShaderProgram&& other) noexcept
+        : id_(std::exchange(other.id_, 0)),
+          uniformLocations_(std::move(other.uniformLocations_)) {}
     ShaderProgram& operator=(ShaderProgram&& other) noexcept {
         if (this != &other) {
             reset();
             id_ = std::exchange(other.id_, 0);
+            uniformLocations_ = std::move(other.uniformLocations_);
         }
         return *this;
     }
@@ -150,13 +154,18 @@ private:
     void reset() noexcept {
         if (id_ != 0) glDeleteProgram(id_);
         id_ = 0;
+        uniformLocations_.clear();
     }
 
     [[nodiscard]] GLint location(std::string_view name) const {
-        return glGetUniformLocation(id_, std::string{name}.c_str());
+        auto [entry, inserted] = uniformLocations_.try_emplace(std::string{name}, -1);
+        if (inserted)
+            entry->second = glGetUniformLocation(id_, entry->first.c_str());
+        return entry->second;
     }
 
     GLuint id_ = 0;
+    mutable std::unordered_map<std::string, GLint> uniformLocations_;
 };
 
 namespace detail {
