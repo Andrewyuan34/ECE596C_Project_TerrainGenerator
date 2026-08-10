@@ -9,11 +9,13 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <array>
+#include <algorithm>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <span>
 #include <string>
 #include <string_view>
@@ -254,25 +256,69 @@ loadBmpTexture(const std::filesystem::path& path) {
     if (!in || header[0] != 'B' || header[1] != 'M')
         return std::unexpected("not a BMP file: " + path.string());
 
+    const auto u16 = [&header](std::size_t offset) {
+        return static_cast<std::uint16_t>(header[offset]) |
+               static_cast<std::uint16_t>(header[offset + 1]) << 8u;
+    };
     const auto u32 = [&header](std::size_t offset) {
         return static_cast<std::uint32_t>(header[offset])        |
                static_cast<std::uint32_t>(header[offset + 1]) << 8u  |
                static_cast<std::uint32_t>(header[offset + 2]) << 16u |
                static_cast<std::uint32_t>(header[offset + 3]) << 24u;
     };
-    std::uint32_t dataPos   = u32(0x0A);
-    std::uint32_t imageSize = u32(0x22);
-    const std::uint32_t width  = u32(0x12);
-    const std::uint32_t height = u32(0x16);
-    if (imageSize == 0) imageSize = width * height * 3;
-    if (dataPos == 0)   dataPos   = 54;
 
-    std::vector<unsigned char> data(imageSize);
+    const std::uint32_t dataPos = u32(0x0A);
+    const std::uint32_t dibSize = u32(0x0E);
+    const auto widthSigned = static_cast<std::int32_t>(u32(0x12));
+    const auto heightSigned = static_cast<std::int32_t>(u32(0x16));
+    const std::uint32_t declaredImageSize = u32(0x22);
+    if (dibSize < 40 || dataPos < 14u + dibSize)
+        return std::unexpected("unsupported BMP header: " + path.string());
+    if (u16(0x1A) != 1 || u16(0x1C) != 24 || u32(0x1E) != 0)
+        return std::unexpected("texture must be an uncompressed 24-bit BMP: " +
+                               path.string());
+    if (widthSigned <= 0 || heightSigned == 0)
+        return std::unexpected("invalid BMP dimensions: " + path.string());
+
+    constexpr std::uint32_t kMaxTextureDimension = 16'384;
+    const std::uint64_t width = static_cast<std::uint32_t>(widthSigned);
+    const std::int64_t signedHeight = heightSigned;
+    const std::uint64_t height = static_cast<std::uint64_t>(
+        signedHeight < 0 ? -signedHeight : signedHeight);
+    if (width > kMaxTextureDimension || height > kMaxTextureDimension)
+        return std::unexpected("BMP dimensions exceed the supported limit: " +
+                               path.string());
+
+    const std::uint64_t packedRow = width * 3u;
+    const std::uint64_t fileRow = (packedRow + 3u) & ~std::uint64_t{3u};
+    const std::uint64_t storedSize = fileRow * height;
+    if (declaredImageSize != 0 && declaredImageSize < storedSize)
+        return std::unexpected("BMP image size is truncated: " + path.string());
+
+    std::error_code sizeError;
+    const std::uintmax_t fileSize = std::filesystem::file_size(path, sizeError);
+    if (sizeError || dataPos > fileSize || storedSize > fileSize - dataPos)
+        return std::unexpected("BMP pixel data exceeds the file: " + path.string());
+    if (storedSize > std::numeric_limits<std::size_t>::max())
+        return std::unexpected("BMP is too large to load: " + path.string());
+
+    std::vector<unsigned char> stored(static_cast<std::size_t>(storedSize));
     in.seekg(static_cast<std::streamoff>(dataPos));
-    in.read(reinterpret_cast<char*>(data.data()),
-            static_cast<std::streamsize>(data.size()));
+    in.read(reinterpret_cast<char*>(stored.data()),
+            static_cast<std::streamsize>(stored.size()));
     if (!in)
         return std::unexpected("error reading image data: " + path.string());
+
+    std::vector<unsigned char> data(static_cast<std::size_t>(packedRow * height));
+    const bool topDown = heightSigned < 0;
+    for (std::size_t row = 0; row < static_cast<std::size_t>(height); ++row) {
+        const std::size_t sourceRow = topDown
+            ? static_cast<std::size_t>(height) - 1u - row
+            : row;
+        std::copy_n(stored.data() + sourceRow * static_cast<std::size_t>(fileRow),
+                    static_cast<std::size_t>(packedRow),
+                    data.data() + row * static_cast<std::size_t>(packedRow));
+    }
 
     Texture2D texture;
     glBindTexture(GL_TEXTURE_2D, texture.id());
