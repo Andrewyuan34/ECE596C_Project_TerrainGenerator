@@ -54,7 +54,9 @@ void main() {
             vec3 waterAmbient = uAmbientLight * waterColor.rgb;
             vec4 waterLit     = vec4(waterAmbient + waterDiffuse, waterColor.a);
 
-            FragColor = mix(finalColor, waterLit, alpha);
+            // The terrain is already in the framebuffer. Output the water
+            // layer once and let GL_SRC_ALPHA blending composite it.
+            FragColor = waterLit;
         } else {
             discard; // Water plane fragments above the terrain are invisible
         }
