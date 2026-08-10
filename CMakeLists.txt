@@ -63,6 +63,7 @@ set(TERRAIN_GENERATOR_SOURCES
     src/perlin_noise.cpp
     src/terrain_mesh.cpp
     src/camera.cpp
+    src/gl_raii.cpp
     src/application.cpp
 )
 file(GLOB TERRAIN_PROJECT_HEADERS CONFIGURE_DEPENDS
