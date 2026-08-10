@@ -28,6 +28,9 @@ namespace tg {
 namespace {
 constexpr glm::vec3 kAmbientLight{0.3f, 0.3f, 0.3f};
 constexpr glm::vec3 kLightColor{1.0f, 1.0f, 1.0f};
+constexpr glm::vec3 kSkyZenithColor{0.08f, 0.22f, 0.48f};
+constexpr glm::vec3 kSkyHorizonColor{0.82f, 0.58f, 0.34f};
+constexpr float kFogExtentMultiplier = 3.0f;
 constexpr float kLightRotationSpeed = 1.5f;   // radians per second while held
 constexpr float kScrollGlideFactor  = 0.25f;  // fraction of moveSpeed per tick
 constexpr int   kCubeIndexCount     = 36;
@@ -161,6 +164,11 @@ std::expected<void, std::string> Application::loadAssets() {
     // --- Shaders ---
     const auto shaderDir = options_.assetRoot / "shader";
     const auto textureDir = options_.assetRoot / "texture";
+    auto skyShader = gl::loadProgram(shaderDir / "sky.vert",
+                                     shaderDir / "sky.frag");
+    if (!skyShader) return std::unexpected{std::move(skyShader).error()};
+    gpu_->skyShader = std::move(*skyShader);
+
     auto terrainShader = gl::loadProgram(shaderDir / "terrain.vert",
                                          shaderDir / "terrain.frag");
     if (!terrainShader) return std::unexpected{std::move(terrainShader).error()};
@@ -182,8 +190,12 @@ std::expected<void, std::string> Application::loadAssets() {
 
     // --- Static uniforms ---
     updateTerrainUniforms();
+    gpu_->skyShader.use();
+    gpu_->skyShader.set("uZenithColor", kSkyZenithColor);
+    gpu_->skyShader.set("uHorizonColor", kSkyHorizonColor);
     gpu_->terrainShader.use();
     gpu_->terrainShader.set("uAmbientLight", kAmbientLight);
+    gpu_->terrainShader.set("uFogColor", kSkyHorizonColor);
     gpu_->terrainShader.set("uGrassTexture", 0);
     gpu_->terrainShader.set("uSandTexture", 1);
     gpu_->cubeShader.use();
@@ -230,6 +242,9 @@ void Application::updateTerrainUniforms() {
     gpu_->terrainShader.set("uHeightDifLow", mesh_.heightDifLow);
     gpu_->terrainShader.set("uHeightDifHigh", mesh_.heightDifHigh);
     gpu_->terrainShader.set("uWaterDepthMax", mesh_.waterDepthMax);
+    const float renderedExtent = static_cast<float>(mesh_.worldSize) * 0.1f;
+    const float fogDensity = 1.0f / std::max(renderedExtent * kFogExtentMultiplier, 1.0f);
+    gpu_->terrainShader.set("uFogDensity", fogDensity);
 }
 
 std::expected<void, std::string> Application::initInterface() {
@@ -385,6 +400,19 @@ void Application::renderFrame() {
         glm::perspective(glm::radians(45.0f), aspect, 10.0f, 10000.0f) *
         camera_.viewMatrix();
 
+    // --- Procedural gradient sky ---
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    gpu_->skyShader.use();
+    gpu_->skyShader.set("uInvViewProj", glm::inverse(viewProj));
+    gpu_->skyShader.set("uCameraPos", camera_.position());
+    gpu_->skyVao.bind();
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    gl::VertexArray::unbind();
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_DEPTH_TEST);
+
     struct VisibleDraw {
         std::size_t chunkIndex = 0;
         DrawRange range;
@@ -465,6 +493,7 @@ void Application::renderFrame() {
     shader.use();
     shader.set("uViewProj", viewProj);
     shader.set("uLightPos", lightPos_);
+    shader.set("uCameraPos", camera_.position());
     glPolygonMode(GL_FRONT_AND_BACK, camera_.wireframe ? GL_LINE : GL_FILL);
     gpu_->grassTexture.bind(GL_TEXTURE0);
     gpu_->sandTexture.bind(GL_TEXTURE1);

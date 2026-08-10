@@ -22,9 +22,20 @@ uniform float uWaterDepthMax;
 uniform vec3 uAmbientLight;
 uniform vec3 uLightPos;
 
+// Lightweight atmospheric perspective
+uniform vec3  uCameraPos;
+uniform vec3  uFogColor;
+uniform float uFogDensity;
+
 // Height range for terrain texture blending
 uniform float uHeightDifLow;
 uniform float uHeightDifHigh;
+
+vec3 applyDistanceFog(vec3 color) {
+    float distanceToCamera = length(FragPos - uCameraPos);
+    float fogFactor = clamp(1.0 - exp(-distanceToCamera * uFogDensity), 0.0, 0.72);
+    return mix(color, uFogColor, fogFactor);
+}
 
 void main() {
     vec4 grass = texture(uGrassTexture, TexCoord);
@@ -56,11 +67,11 @@ void main() {
 
             // The terrain is already in the framebuffer. Output the water
             // layer once and let GL_SRC_ALPHA blending composite it.
-            FragColor = waterLit;
+            FragColor = vec4(applyDistanceFog(waterLit.rgb), waterLit.a);
         } else {
             discard; // Water plane fragments above the terrain are invisible
         }
     } else {
-        FragColor = finalColor;
+        FragColor = vec4(applyDistanceFog(finalColor.rgb), finalColor.a);
     }
 }

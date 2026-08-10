@@ -36,12 +36,14 @@ private:
     // All objects whose destructors call glDelete* live here so they can be
     // destroyed together while the GL context is still current.
     struct GpuResources {
+        gl::VertexArray   skyVao;
         gl::VertexArray   terrainVao;
         gl::Buffer        terrainVbo;
         gl::Buffer        terrainEbo;
         gl::VertexArray   cubeVao;
         gl::Buffer        cubeVbo;
         gl::Buffer        cubeEbo;
+        gl::ShaderProgram skyShader;
         gl::ShaderProgram terrainShader;
         gl::ShaderProgram cubeShader;
         gl::Texture2D     grassTexture;
