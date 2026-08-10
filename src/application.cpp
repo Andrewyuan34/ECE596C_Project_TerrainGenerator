@@ -2,6 +2,9 @@
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
 
 #include <algorithm>
 #include <array>
@@ -54,6 +57,11 @@ Application::Application(CliOptions options)
 }
 
 Application::~Application() {
+    if (imguiInitialized_) {
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+    }
     gpu_.reset();     // GL objects go first, while the context is current
     window_.reset();  // then the window/context
     glfwTerminate();
@@ -81,6 +89,11 @@ int Application::run() {
         }
         std::cout << "Screenshot saved to " << options_.screenshot->string() << '\n';
         return 0;
+    }
+
+    if (const auto result = initInterface(); !result) {
+        std::cerr << "error: " << result.error() << '\n';
+        return 1;
     }
 
     mainLoop();
@@ -127,28 +140,7 @@ std::expected<void, std::string> Application::loadAssets() {
     gpu_.emplace();
 
     // --- Terrain mesh (terrain + water share one VAO / two index ranges) ---
-    gpu_->terrainVao.bind();
-    gpu_->terrainVbo.upload(GL_ARRAY_BUFFER, std::span{mesh_.vertices});
-    gpu_->terrainEbo.upload(GL_ELEMENT_ARRAY_BUFFER, std::span{mesh_.indices});
-    constexpr GLsizei stride = sizeof(Vertex);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride,
-                          reinterpret_cast<void*>(offsetof(Vertex, position)));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride,
-                          reinterpret_cast<void*>(offsetof(Vertex, normal)));
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride,
-                          reinterpret_cast<void*>(offsetof(Vertex, uv)));
-    glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, stride,
-                          reinterpret_cast<void*>(offsetof(Vertex, height)));
-    gl::VertexArray::unbind();
-
-    // GPU buffers now own the render data. Retain only mesh metadata on the
-    // CPU so high LODs do not keep a second copy of large vertex/index arrays.
-    std::vector<Vertex>{}.swap(mesh_.vertices);
-    std::vector<std::uint32_t>{}.swap(mesh_.indices);
+    uploadTerrainMesh();
 
     // --- Light-source cube ---
     gpu_->cubeVao.bind();
@@ -181,12 +173,9 @@ std::expected<void, std::string> Application::loadAssets() {
     gpu_->sandTexture = std::move(*sand);
 
     // --- Static uniforms ---
+    updateTerrainUniforms();
     gpu_->terrainShader.use();
     gpu_->terrainShader.set("uAmbientLight", kAmbientLight);
-    gpu_->terrainShader.set("uWaterLevel", mesh_.waterLevel);
-    gpu_->terrainShader.set("uHeightDifLow", mesh_.heightDifLow);
-    gpu_->terrainShader.set("uHeightDifHigh", mesh_.heightDifHigh);
-    gpu_->terrainShader.set("uWaterDepthMax", mesh_.waterDepthMax);
     gpu_->terrainShader.set("uGrassTexture", 0);
     gpu_->terrainShader.set("uSandTexture", 1);
     gpu_->cubeShader.use();
@@ -202,6 +191,68 @@ std::expected<void, std::string> Application::loadAssets() {
     return {};
 }
 
+void Application::uploadTerrainMesh() {
+    gpu_->terrainVao.bind();
+    gpu_->terrainVbo.upload(GL_ARRAY_BUFFER, std::span{mesh_.vertices}, GL_DYNAMIC_DRAW);
+    gpu_->terrainEbo.upload(GL_ELEMENT_ARRAY_BUFFER, std::span{mesh_.indices}, GL_DYNAMIC_DRAW);
+    constexpr GLsizei stride = sizeof(Vertex);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride,
+                          reinterpret_cast<void*>(offsetof(Vertex, position)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride,
+                          reinterpret_cast<void*>(offsetof(Vertex, normal)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride,
+                          reinterpret_cast<void*>(offsetof(Vertex, uv)));
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, stride,
+                          reinterpret_cast<void*>(offsetof(Vertex, height)));
+    gl::VertexArray::unbind();
+
+    // GPU buffers now own the render data. Retain only mesh metadata on the
+    // CPU so high LODs do not keep a second copy of large vertex/index arrays.
+    std::vector<Vertex>{}.swap(mesh_.vertices);
+    std::vector<std::uint32_t>{}.swap(mesh_.indices);
+}
+
+void Application::updateTerrainUniforms() {
+    gpu_->terrainShader.use();
+    gpu_->terrainShader.set("uWaterLevel", mesh_.waterLevel);
+    gpu_->terrainShader.set("uHeightDifLow", mesh_.heightDifLow);
+    gpu_->terrainShader.set("uHeightDifHigh", mesh_.heightDifHigh);
+    gpu_->terrainShader.set("uWaterDepthMax", mesh_.waterDepthMax);
+}
+
+std::expected<void, std::string> Application::initInterface() {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+    if (!ImGui_ImplGlfw_InitForOpenGL(window_.get(), true)) {
+        ImGui::DestroyContext();
+        return std::unexpected{"failed to initialize the ImGui GLFW backend"};
+    }
+    if (!ImGui_ImplOpenGL3_Init("#version 330 core")) {
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+        return std::unexpected{"failed to initialize the ImGui OpenGL backend"};
+    }
+    imguiInitialized_ = true;
+    return {};
+}
+
+void Application::regenerateTerrain() {
+    const double start = glfwGetTime();
+    mesh_ = generateTerrain(options_.terrain);
+    uploadTerrainMesh();
+    updateTerrainUniforms();
+    const float worldSize = static_cast<float>(mesh_.worldSize);
+    lightRadius_ = worldSize * 0.1f;
+    lightHeight_ = worldSize / 30.0f;
+    updateLight();
+    lastGenerationMs_ = (glfwGetTime() - start) * 1000.0;
+}
+
 void Application::mainLoop() {
     lastFrameTime_ = glfwGetTime();
     lastFpsTime_   = lastFrameTime_;
@@ -213,25 +264,86 @@ void Application::mainLoop() {
         const float  dt  = static_cast<float>(now - lastFrameTime_);
         lastFrameTime_   = now;
 
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+        renderControls();
+
         // Continuous (held-key) input.
         GLFWwindow* w = window_.get();
         const auto pressed = [w](int key) { return glfwGetKey(w, key) == GLFW_PRESS; };
-        camera_.update(CameraInput{
-            .forward = pressed(GLFW_KEY_W),
-            .back    = pressed(GLFW_KEY_S),
-            .left    = pressed(GLFW_KEY_A),
-            .right   = pressed(GLFW_KEY_D),
-            .up      = pressed(GLFW_KEY_R) || pressed(GLFW_KEY_SPACE),
-            .down    = pressed(GLFW_KEY_F) || pressed(GLFW_KEY_LEFT_SHIFT),
-        }, dt);
+        if (!ImGui::GetIO().WantCaptureKeyboard) {
+            camera_.update(CameraInput{
+                .forward = pressed(GLFW_KEY_W),
+                .back    = pressed(GLFW_KEY_S),
+                .left    = pressed(GLFW_KEY_A),
+                .right   = pressed(GLFW_KEY_D),
+                .up      = pressed(GLFW_KEY_R) || pressed(GLFW_KEY_SPACE),
+                .down    = pressed(GLFW_KEY_F) || pressed(GLFW_KEY_LEFT_SHIFT),
+            }, dt);
 
-        if (pressed(GLFW_KEY_2)) { lightAngle_ += kLightRotationSpeed * dt; updateLight(); }
-        if (pressed(GLFW_KEY_3)) { lightAngle_ -= kLightRotationSpeed * dt; updateLight(); }
+            if (pressed(GLFW_KEY_2)) {
+                lightAngle_ += kLightRotationSpeed * dt;
+                updateLight();
+            }
+            if (pressed(GLFW_KEY_3)) {
+                lightAngle_ -= kLightRotationSpeed * dt;
+                updateLight();
+            }
+        }
 
         renderFrame();
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(w);
         updateWindowTitle(now);
     }
+}
+
+void Application::renderControls() {
+    if (!showControls_)
+        return;
+
+    ImGui::SetNextWindowSize(ImVec2{360.0f, 0.0f}, ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Terrain controls", &showControls_,
+                      ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::End();
+        return;
+    }
+
+    auto& terrain = options_.terrain;
+    constexpr double frequencyMin = 1.0, frequencyMax = 5.0;
+    constexpr double amplitudeMin = 0.4, amplitudeMax = 0.8;
+    constexpr double persistenceMin = 0.4, persistenceMax = 0.6;
+    constexpr double lacunarityMin = 1.0, lacunarityMax = 3.0;
+    ImGui::SeparatorText("Noise");
+    ImGui::SliderScalar("Frequency", ImGuiDataType_Double,
+                        &terrain.noise.frequency, &frequencyMin, &frequencyMax, "%.2f");
+    ImGui::SliderInt("Octaves", &terrain.noise.octaves, 2, 20);
+    ImGui::SliderScalar("Amplitude", ImGuiDataType_Double,
+                        &terrain.noise.amplitude, &amplitudeMin, &amplitudeMax, "%.2f");
+    ImGui::SliderScalar("Persistence", ImGuiDataType_Double,
+                        &terrain.noise.persistence, &persistenceMin, &persistenceMax, "%.2f");
+    ImGui::SliderScalar("Lacunarity", ImGuiDataType_Double,
+                        &terrain.noise.lacunarity, &lacunarityMin, &lacunarityMax, "%.2f");
+    ImGui::InputScalar("Seed", ImGuiDataType_U32, &terrain.seed);
+
+    ImGui::SeparatorText("Mesh");
+    ImGui::SliderInt("Width", &terrain.width, 1, 13);
+    ImGui::SliderInt("Detail", &terrain.lod, 0, 5);
+
+    ImGui::SeparatorText("View");
+    ImGui::Checkbox("Wireframe", &camera_.wireframe);
+    ImGui::SliderFloat("Camera speed", &camera_.moveSpeed, 25.0f, 1500.0f, "%.0f");
+
+    if (ImGui::Button("Regenerate terrain"))
+        regenerateTerrain();
+    ImGui::SameLine();
+    ImGui::TextDisabled("F1 hides this panel");
+    ImGui::Text("Triangles: %zu", mesh_.terrainIndexCount / 3u);
+    if (lastGenerationMs_ > 0.0)
+        ImGui::Text("Last generation: %.1f ms", lastGenerationMs_);
+    ImGui::End();
 }
 
 void Application::renderFrame() {
@@ -365,10 +477,17 @@ void Application::keyCallback(GLFWwindow* window, int key, int, int action, int)
     auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
     if (action != GLFW_PRESS)
         return;
+    if (key == GLFW_KEY_ESCAPE) {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+        return;
+    }
+    if (key == GLFW_KEY_F1) {
+        app->showControls_ = !app->showControls_;
+        return;
+    }
+    if (app->imguiInitialized_ && ImGui::GetIO().WantCaptureKeyboard)
+        return;
     switch (key) {
-        case GLFW_KEY_ESCAPE:
-            glfwSetWindowShouldClose(window, GLFW_TRUE);
-            break;
         case GLFW_KEY_1:
             app->camera_.wireframe = !app->camera_.wireframe;
             break;
@@ -379,12 +498,16 @@ void Application::keyCallback(GLFWwindow* window, int key, int, int action, int)
 
 void Application::scrollCallback(GLFWwindow* window, double, double yoffset) {
     auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+    if (app->imguiInitialized_ && ImGui::GetIO().WantCaptureMouse)
+        return;
     app->camera_.glide(static_cast<float>(yoffset) * app->camera_.moveSpeed *
                        kScrollGlideFactor);
 }
 
 void Application::cursorPosCallback(GLFWwindow* window, double x, double y) {
     auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+    if (app->imguiInitialized_ && ImGui::GetIO().WantCaptureMouse)
+        return;
     if (!app->middleButtonPressed_)
         return;
     if (app->firstMouse_) {
@@ -402,6 +525,12 @@ void Application::cursorPosCallback(GLFWwindow* window, double x, double y) {
 void Application::mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
     if (button != GLFW_MOUSE_BUTTON_MIDDLE)
+        return;
+    if (action == GLFW_RELEASE) {
+        app->middleButtonPressed_ = false;
+        return;
+    }
+    if (app->imguiInitialized_ && ImGui::GetIO().WantCaptureMouse)
         return;
     app->middleButtonPressed_ = (action == GLFW_PRESS);
     if (app->middleButtonPressed_) {

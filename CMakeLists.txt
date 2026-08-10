@@ -34,7 +34,12 @@ FetchContent_Declare(glad
     URL_HASH SHA256=882cc167a31421b910e3846b40fdc9ca2469e5a9054bab980a94435151b1cf79
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 
-FetchContent_MakeAvailable(glfw glm CLI11 glad)
+FetchContent_Declare(imgui
+    URL "https://github.com/ocornut/imgui/archive/refs/tags/v1.91.9.zip"
+    URL_HASH SHA256=3fe9e93066e37c630cbbada821a45812cd86df0f21a476cf74c925e1b649878d
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+
+FetchContent_MakeAvailable(glfw glm CLI11 glad imgui)
 
 # glad2 keeps its CMake integration in the cmake/ subdirectory.
 add_subdirectory("${glad_SOURCE_DIR}/cmake" glad_cmake)
@@ -51,6 +56,22 @@ if (NOT TERRAIN_JINJA2_STATUS EQUAL 0)
         "glad requires Jinja2. Install requirements-build.txt into the active Python environment.")
 endif()
 glad_add_library(glad_gl_core_33 STATIC REPRODUCIBLE API gl:core=3.3)
+
+# Dear ImGui intentionally ships without a CMake target. Keep the target local
+# and compile only the core plus the GLFW/OpenGL 3 backends used by this app.
+add_library(terrain_imgui STATIC
+    "${imgui_SOURCE_DIR}/imgui.cpp"
+    "${imgui_SOURCE_DIR}/imgui_draw.cpp"
+    "${imgui_SOURCE_DIR}/imgui_tables.cpp"
+    "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+    "${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
+    "${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp"
+)
+target_include_directories(terrain_imgui PUBLIC
+    "${imgui_SOURCE_DIR}"
+    "${imgui_SOURCE_DIR}/backends"
+)
+target_link_libraries(terrain_imgui PRIVATE glfw)
 
 # ---- Target -----------------------------------------------------------------
 set(TERRAIN_GENERATOR_SOURCES
@@ -93,6 +114,7 @@ target_link_libraries(terrain_generator PRIVATE
     glfw
     glm::glm
     CLI11::CLI11
+    terrain_imgui
 )
 
 terrain_enable_warnings(terrain_generator)

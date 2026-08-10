@@ -6,6 +6,7 @@
 - 渲染:GLFW + glad2 + OpenGL 3.3 Core(自绘着色器管线,无固定管线)
 - 数学:GLM
 - 命令行:CLI11
+- 调试界面:Dear ImGui(运行时调参并重新生成)
 - 构建:CMake(≥ 3.28)+ Ninja,依赖全部由 **FetchContent** 拉取
 - 编译器:MSVC、GCC 或 Clang(标准库需支持 C++23 `std::expected`)
 
@@ -103,6 +104,7 @@ cmake --install build --prefix install
 | 按住鼠标中键拖动 | 视角旋转 |
 | `1` | 切换线框模式 |
 | `2` / `3`(按住) | 光源顺/逆时针旋转 |
+| `F1` | 显示/隐藏地形参数面板 |
 | `Esc` | 退出 |
 
 ## 目录结构

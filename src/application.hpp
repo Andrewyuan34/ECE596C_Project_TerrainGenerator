@@ -49,9 +49,14 @@ private:
 
     [[nodiscard]] std::expected<void, std::string> initWindow();
     [[nodiscard]] std::expected<void, std::string> loadAssets();
+    [[nodiscard]] std::expected<void, std::string> initInterface();
 
     void mainLoop();
     void renderFrame();
+    void renderControls();
+    void uploadTerrainMesh();
+    void updateTerrainUniforms();
+    void regenerateTerrain();
     void updateLight() noexcept;
     void updateWindowTitle(double now);
     [[nodiscard]] std::expected<void, std::string>
@@ -76,7 +81,10 @@ private:
     double lastFrameTime_ = 0.0;
     double lastFpsTime_   = 0.0;
     int    frameCount_    = 0;
+    double lastGenerationMs_ = 0.0;
 
+    bool   imguiInitialized_   = false;
+    bool   showControls_       = true;
     bool   middleButtonPressed_ = false;
     bool   firstMouse_          = true;
     double lastMouseX_          = 0.0;
