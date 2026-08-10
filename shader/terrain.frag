@@ -19,8 +19,10 @@ uniform bool  uDrawWater;
 uniform float uWaterDepthMax;
 
 // Lighting parameters
-uniform vec3 uAmbientLight;
-uniform vec3 uLightPos;
+uniform vec3  uSunDirection;
+uniform vec3  uSunColor;
+uniform float uSunIntensity;
+uniform vec3  uAmbientColor;
 
 // Lightweight atmospheric perspective
 uniform vec3  uCameraPos;
@@ -45,12 +47,12 @@ void main() {
     float factor = clamp((TerrainHeight - uHeightDifLow) / uHeightDifHigh, 0.0, 1.0);
     vec4 terrainColor = mix(sand, grass, factor);
 
-    // Ambient + diffuse lighting
-    vec3 ambient  = uAmbientLight * terrainColor.rgb;
+    // Sky ambient + directional sunlight
+    vec3 ambient  = uAmbientColor * terrainColor.rgb;
     vec3 norm     = normalize(FragNormal);
-    vec3 lightDir = normalize(uLightPos - FragPos);
+    vec3 lightDir = normalize(uSunDirection);
     float diff    = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse  = diff * terrainColor.rgb;
+    vec3 diffuse  = uSunColor * (diff * uSunIntensity) * terrainColor.rgb;
 
     vec4 finalColor = vec4(ambient + diffuse, terrainColor.a);
 
@@ -61,8 +63,8 @@ void main() {
             float alpha = clamp(depthFactor + 0.2, 0.2, 0.8);
 
             vec4 waterColor   = vec4(0.0, 0.4, 1.0, alpha);
-            vec3 waterDiffuse = diff * waterColor.rgb;
-            vec3 waterAmbient = uAmbientLight * waterColor.rgb;
+            vec3 waterDiffuse = uSunColor * (diff * uSunIntensity) * waterColor.rgb;
+            vec3 waterAmbient = uAmbientColor * waterColor.rgb;
             vec4 waterLit     = vec4(waterAmbient + waterDiffuse, waterColor.a);
 
             // The terrain is already in the framebuffer. Output the water

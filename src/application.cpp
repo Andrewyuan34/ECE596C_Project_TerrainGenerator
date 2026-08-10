@@ -16,6 +16,7 @@
 #include <functional>
 #include <iomanip>
 #include <iostream>
+#include <numbers>
 #include <sstream>
 #include <span>
 #include <utility>
@@ -26,30 +27,26 @@
 namespace tg {
 
 namespace {
-constexpr glm::vec3 kAmbientLight{0.3f, 0.3f, 0.3f};
-constexpr glm::vec3 kLightColor{1.0f, 1.0f, 1.0f};
-constexpr glm::vec3 kSkyZenithColor{0.08f, 0.22f, 0.48f};
-constexpr glm::vec3 kSkyHorizonColor{0.82f, 0.58f, 0.34f};
 constexpr float kFogExtentMultiplier = 3.0f;
-constexpr float kLightRotationSpeed = 1.5f;   // radians per second while held
 constexpr float kScrollGlideFactor  = 0.25f;  // fraction of moveSpeed per tick
-constexpr int   kCubeIndexCount     = 36;
 
-// Corners of a unit cube; scaled at render time through the model matrix.
-constexpr float kCubeVertices[] = {
-    -0.5f, -0.5f, -0.5f,  0.5f, -0.5f, -0.5f,
-     0.5f,  0.5f, -0.5f, -0.5f,  0.5f, -0.5f,
-    -0.5f, -0.5f,  0.5f,  0.5f, -0.5f,  0.5f,
-     0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f,
-};
-constexpr std::uint32_t kCubeIndices[] = {
-    0, 1, 2,  2, 3, 0,
-    4, 5, 6,  6, 7, 4,
-    0, 4, 7,  7, 3, 0,
-    1, 5, 6,  6, 2, 1,
-    3, 2, 6,  6, 7, 3,
-    0, 1, 5,  5, 4, 0,
-};
+constexpr glm::vec3 kNightZenith{0.015f, 0.025f, 0.080f};
+constexpr glm::vec3 kNightHorizon{0.055f, 0.070f, 0.130f};
+constexpr glm::vec3 kNightSun{0.0f, 0.0f, 0.0f};
+constexpr glm::vec3 kNightAmbient{0.035f, 0.045f, 0.080f};
+constexpr glm::vec3 kDuskZenith{0.080f, 0.180f, 0.360f};
+constexpr glm::vec3 kDuskHorizon{0.950f, 0.380f, 0.160f};
+constexpr glm::vec3 kDuskSun{1.000f, 0.520f, 0.260f};
+constexpr glm::vec3 kDuskAmbient{0.180f, 0.160f, 0.180f};
+constexpr glm::vec3 kDayZenith{0.120f, 0.360f, 0.720f};
+constexpr glm::vec3 kDayHorizon{0.650f, 0.800f, 0.950f};
+constexpr glm::vec3 kDaySun{1.000f, 0.950f, 0.820f};
+constexpr glm::vec3 kDayAmbient{0.300f, 0.340f, 0.400f};
+
+float smoothstep(float edge0, float edge1, float value) noexcept {
+    const float t = std::clamp((value - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+    return t * t * (3.0f - 2.0f * t);
+}
 } // namespace
 
 Application::Application(CliOptions options)
@@ -59,12 +56,10 @@ Application::Application(CliOptions options)
                         static_cast<float>(1024 * options_.terrain.width) * 0.114f},
               -90.0f, -18.0f) {
     const float worldSize = static_cast<float>(1024 * options_.terrain.width);
-    lightRadius_ = worldSize * 0.1f;
-    lightHeight_ = worldSize / 30.0f;
     const float renderedExtent = worldSize * 0.1f;
     lodNearDistance_ = renderedExtent * 0.6f;
     lodFarDistance_ = renderedExtent * 1.5f;
-    updateLight();
+    updateEnvironment();
 }
 
 Application::~Application() {
@@ -153,14 +148,6 @@ std::expected<void, std::string> Application::loadAssets() {
     // --- Terrain mesh (terrain + water share one VAO / chunk index ranges) ---
     uploadTerrainMesh();
 
-    // --- Light-source cube ---
-    gpu_->cubeVao.bind();
-    gpu_->cubeVbo.upload(GL_ARRAY_BUFFER, std::span<const float>{kCubeVertices});
-    gpu_->cubeEbo.upload(GL_ELEMENT_ARRAY_BUFFER, std::span<const std::uint32_t>{kCubeIndices});
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-    gl::VertexArray::unbind();
-
     // --- Shaders ---
     const auto shaderDir = options_.assetRoot / "shader";
     const auto textureDir = options_.assetRoot / "texture";
@@ -174,11 +161,6 @@ std::expected<void, std::string> Application::loadAssets() {
     if (!terrainShader) return std::unexpected{std::move(terrainShader).error()};
     gpu_->terrainShader = std::move(*terrainShader);
 
-    auto cubeShader = gl::loadProgram(shaderDir / "light_cube.vert",
-                                      shaderDir / "light_cube.frag");
-    if (!cubeShader) return std::unexpected{std::move(cubeShader).error()};
-    gpu_->cubeShader = std::move(*cubeShader);
-
     // --- Textures ---
     auto grass = gl::loadBmpTexture(textureDir / "grass.bmp");
     if (!grass) return std::unexpected{std::move(grass).error()};
@@ -190,16 +172,9 @@ std::expected<void, std::string> Application::loadAssets() {
 
     // --- Static uniforms ---
     updateTerrainUniforms();
-    gpu_->skyShader.use();
-    gpu_->skyShader.set("uZenithColor", kSkyZenithColor);
-    gpu_->skyShader.set("uHorizonColor", kSkyHorizonColor);
     gpu_->terrainShader.use();
-    gpu_->terrainShader.set("uAmbientLight", kAmbientLight);
-    gpu_->terrainShader.set("uFogColor", kSkyHorizonColor);
     gpu_->terrainShader.set("uGrassTexture", 0);
     gpu_->terrainShader.set("uSandTexture", 1);
-    gpu_->cubeShader.use();
-    gpu_->cubeShader.set("uLightColor", kLightColor);
 
     // --- Global GL state ---
     glFrontFace(GL_CW);
@@ -270,11 +245,8 @@ void Application::regenerateTerrain() {
     mesh_ = generateTerrain(options_.terrain);
     uploadTerrainMesh();
     updateTerrainUniforms();
-    const float worldSize = static_cast<float>(mesh_.worldSize);
-    lightRadius_ = worldSize * 0.1f;
-    lightHeight_ = worldSize / 30.0f;
-    updateLight();
     if (previousExtent > 0.0f) {
+        const float worldSize = static_cast<float>(mesh_.worldSize);
         const float distanceScale = worldSize * 0.1f / previousExtent;
         camera_.scalePosition(distanceScale);
         lodNearDistance_ *= distanceScale;
@@ -312,14 +284,6 @@ void Application::mainLoop() {
                 .down    = pressed(GLFW_KEY_F) || pressed(GLFW_KEY_LEFT_SHIFT),
             }, dt);
 
-            if (pressed(GLFW_KEY_2)) {
-                lightAngle_ += kLightRotationSpeed * dt;
-                updateLight();
-            }
-            if (pressed(GLFW_KEY_3)) {
-                lightAngle_ -= kLightRotationSpeed * dt;
-                updateLight();
-            }
         }
 
         renderFrame();
@@ -407,6 +371,11 @@ void Application::renderFrame() {
     gpu_->skyShader.use();
     gpu_->skyShader.set("uInvViewProj", glm::inverse(viewProj));
     gpu_->skyShader.set("uCameraPos", camera_.position());
+    gpu_->skyShader.set("uSunDirection", environmentState_.sunDirection);
+    gpu_->skyShader.set("uZenithColor", environmentState_.zenithColor);
+    gpu_->skyShader.set("uHorizonColor", environmentState_.horizonColor);
+    gpu_->skyShader.set("uSunColor", environmentState_.sunColor);
+    gpu_->skyShader.set("uSunVisualIntensity", environmentState_.sunVisualIntensity);
     gpu_->skyVao.bind();
     glDrawArrays(GL_TRIANGLES, 0, 3);
     gl::VertexArray::unbind();
@@ -492,8 +461,12 @@ void Application::renderFrame() {
     auto& shader = gpu_->terrainShader;
     shader.use();
     shader.set("uViewProj", viewProj);
-    shader.set("uLightPos", lightPos_);
+    shader.set("uSunDirection", environmentState_.sunDirection);
+    shader.set("uSunColor", environmentState_.sunColor);
+    shader.set("uSunIntensity", environmentState_.sunIntensity);
+    shader.set("uAmbientColor", environmentState_.ambientColor);
     shader.set("uCameraPos", camera_.position());
+    shader.set("uFogColor", environmentState_.horizonColor);
     glPolygonMode(GL_FRONT_AND_BACK, camera_.wireframe ? GL_LINE : GL_FILL);
     gpu_->grassTexture.bind(GL_TEXTURE0);
     gpu_->sandTexture.bind(GL_TEXTURE1);
@@ -507,26 +480,33 @@ void Application::renderFrame() {
     drawVisible();
     gl::VertexArray::unbind();
 
-    // --- Light-source cube (always visible: no culling, no depth test) ---
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
-    gpu_->cubeShader.use();
-    const glm::mat4 model =
-        glm::translate(glm::mat4{1.0f}, lightPos_) *
-        glm::scale(glm::mat4{1.0f}, glm::vec3{static_cast<float>(options_.terrain.width)});
-    gpu_->cubeShader.set("uModel", model);
-    gpu_->cubeShader.set("uViewProj", viewProj);
-    gpu_->cubeVao.bind();
-    glDrawElements(GL_TRIANGLES, kCubeIndexCount, GL_UNSIGNED_INT, nullptr);
-    gl::VertexArray::unbind();
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_DEPTH_TEST);
 }
 
-void Application::updateLight() noexcept {
-    lightPos_ = {lightRadius_ * std::cos(lightAngle_),
-                 lightHeight_,
-                 lightRadius_ * std::sin(lightAngle_)};
+void Application::updateEnvironment() noexcept {
+    const float phase = ((environment_.timeOfDay - 6.0f) / 24.0f) *
+                        (2.0f * std::numbers::pi_v<float>);
+    const float maxElevation = glm::radians(environment_.maxSunElevationDegrees);
+    const float elevation = std::asin(std::sin(phase) * std::sin(maxElevation));
+    const float cosElevation = std::cos(elevation);
+    environmentState_.sunDirection = glm::normalize(glm::vec3{
+        cosElevation * std::sin(phase),
+        std::sin(elevation),
+        cosElevation * std::cos(phase),
+    });
+
+    const float sunHeight = environmentState_.sunDirection.y;
+    const float daylight = smoothstep(-0.08f, 0.12f, sunHeight);
+    const float dayMix = smoothstep(0.08f, 0.45f, sunHeight);
+    environmentState_.zenithColor = glm::mix(
+        glm::mix(kNightZenith, kDuskZenith, daylight), kDayZenith, dayMix);
+    environmentState_.horizonColor = glm::mix(
+        glm::mix(kNightHorizon, kDuskHorizon, daylight), kDayHorizon, dayMix);
+    environmentState_.sunColor = glm::mix(
+        glm::mix(kNightSun, kDuskSun, daylight), kDaySun, dayMix);
+    environmentState_.ambientColor = glm::mix(
+        glm::mix(kNightAmbient, kDuskAmbient, daylight), kDayAmbient, dayMix);
+    environmentState_.sunIntensity = environment_.lightIntensity * daylight;
+    environmentState_.sunVisualIntensity = environment_.lightIntensity * daylight;
 }
 
 void Application::updateWindowTitle(double now) {

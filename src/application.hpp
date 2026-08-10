@@ -29,6 +29,22 @@ public:
     [[nodiscard]] int run();
 
 private:
+    struct EnvironmentSettings {
+        float timeOfDay             = 17.5f;
+        float maxSunElevationDegrees = 55.0f;
+        float lightIntensity        = 1.0f;
+    };
+
+    struct EnvironmentState {
+        glm::vec3 sunDirection{0.0f, 1.0f, 0.0f};
+        glm::vec3 zenithColor{0.0f};
+        glm::vec3 horizonColor{0.0f};
+        glm::vec3 sunColor{0.0f};
+        glm::vec3 ambientColor{0.0f};
+        float     sunIntensity       = 0.0f;
+        float     sunVisualIntensity = 0.0f;
+    };
+
     struct WindowDeleter {
         void operator()(GLFWwindow* window) const;
     };
@@ -40,12 +56,8 @@ private:
         gl::VertexArray   terrainVao;
         gl::Buffer        terrainVbo;
         gl::Buffer        terrainEbo;
-        gl::VertexArray   cubeVao;
-        gl::Buffer        cubeVbo;
-        gl::Buffer        cubeEbo;
         gl::ShaderProgram skyShader;
         gl::ShaderProgram terrainShader;
-        gl::ShaderProgram cubeShader;
         gl::Texture2D     grassTexture;
         gl::Texture2D     sandTexture;
     };
@@ -60,7 +72,7 @@ private:
     void uploadTerrainMesh();
     void updateTerrainUniforms();
     void regenerateTerrain();
-    void updateLight() noexcept;
+    void updateEnvironment() noexcept;
     void updateWindowTitle(double now);
     [[nodiscard]] std::expected<void, std::string>
     saveScreenshot(const std::filesystem::path& path);
@@ -76,10 +88,8 @@ private:
     Camera                                  camera_;
     TerrainMesh                             mesh_;
 
-    glm::vec3 lightPos_{0.0f};
-    float     lightAngle_  = 0.0f;
-    float     lightRadius_ = 0.0f;
-    float     lightHeight_ = 0.0f;
+    EnvironmentSettings environment_;
+    EnvironmentState    environmentState_;
 
     double lastFrameTime_ = 0.0;
     double lastFpsTime_   = 0.0;
