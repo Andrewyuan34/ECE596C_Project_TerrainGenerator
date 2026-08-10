@@ -9,10 +9,12 @@ namespace tg {
 
 namespace {
 // The 12 edge-midpoint gradient vectors of a cube (Ken Perlin's set).
+// Keeping the set symmetric avoids introducing a preferred axis into the
+// generated terrain.
 constexpr std::array<std::array<int, 3>, 12> kGradientVectors{{
-    {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0},
-    {1, 1, 0}, {-1, 1, 0}, {1, -1, 0}, {-1, -1, 0},
-    {1, 0, 1}, {-1, 0, 1}, {0, 1, 1}, {0, -1, 1},
+    { 1,  1,  0}, {-1,  1,  0}, { 1, -1,  0}, {-1, -1,  0},
+    { 1,  0,  1}, {-1,  0,  1}, { 1,  0, -1}, {-1,  0, -1},
+    { 0,  1,  1}, { 0, -1,  1}, { 0,  1, -1}, { 0, -1, -1},
 }};
 } // namespace
 
@@ -82,7 +84,8 @@ double PerlinNoise::fbm(double x, double y, double z,
 }
 
 double PerlinNoise::grad(int hash, double x, double y, double z) noexcept {
-    const auto& g = kGradientVectors[hash & 11];
+    const auto& g = kGradientVectors[static_cast<std::size_t>(hash) %
+                                     kGradientVectors.size()];
     return g[0] * x + g[1] * y + g[2] * z;
 }
 
