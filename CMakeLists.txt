@@ -6,10 +6,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-if (NOT MSVC)
-    message(FATAL_ERROR "TerrainGenerator currently supports MSVC on Windows only.")
-endif()
-
 # ---- Dependencies (FetchContent, everything stays inside the build tree) ----
 include(FetchContent)
 
@@ -52,7 +48,7 @@ execute_process(
     OUTPUT_QUIET ERROR_QUIET)
 if (NOT TERRAIN_JINJA2_STATUS EQUAL 0)
     message(FATAL_ERROR
-        "glad requires Jinja2. Run scripts/bootstrap-python.bat, then scripts/env.bat.")
+        "glad requires Jinja2. Install requirements-build.txt into the active Python environment.")
 endif()
 glad_add_library(glad_gl_core_33 STATIC REPRODUCIBLE API gl:core=3.3)
 
@@ -72,8 +68,18 @@ file(GLOB TERRAIN_PROJECT_HEADERS CONFIGURE_DEPENDS
 # Ninja cannot parse localized MSVC /showIncludes output on every Windows
 # locale. Explicit project-header dependencies keep incremental builds correct
 # without depending on diagnostic language or code page.
-set_source_files_properties(${TERRAIN_GENERATOR_SOURCES}
-    PROPERTIES OBJECT_DEPENDS "${TERRAIN_PROJECT_HEADERS}")
+if (MSVC)
+    set_source_files_properties(${TERRAIN_GENERATOR_SOURCES}
+        PROPERTIES OBJECT_DEPENDS "${TERRAIN_PROJECT_HEADERS}")
+endif()
+
+function(terrain_enable_warnings target)
+    if (MSVC)
+        target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /EHsc)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+endfunction()
 
 add_executable(terrain_generator
     ${TERRAIN_GENERATOR_SOURCES}
@@ -89,7 +95,7 @@ target_link_libraries(terrain_generator PRIVATE
     CLI11::CLI11
 )
 
-target_compile_options(terrain_generator PRIVATE /W4 /permissive- /utf-8 /EHsc)
+terrain_enable_warnings(terrain_generator)
 
 # Runtime assets (shaders / textures) are synchronized on every build so an
 # asset-only edit cannot leave a stale copy beside an up-to-date executable.
@@ -109,8 +115,10 @@ install(DIRECTORY shader texture DESTINATION "${CMAKE_INSTALL_BINDIR}")
 # ---- Tests ------------------------------------------------------------------
 include(CTest)
 if (BUILD_TESTING)
-    set_source_files_properties(tests/core_tests.cpp
-        PROPERTIES OBJECT_DEPENDS "${TERRAIN_PROJECT_HEADERS}")
+    if (MSVC)
+        set_source_files_properties(tests/core_tests.cpp
+            PROPERTIES OBJECT_DEPENDS "${TERRAIN_PROJECT_HEADERS}")
+    endif()
     add_executable(terrain_core_tests
         tests/core_tests.cpp
         src/cli.cpp
@@ -119,7 +127,7 @@ if (BUILD_TESTING)
     )
     target_include_directories(terrain_core_tests PRIVATE src)
     target_link_libraries(terrain_core_tests PRIVATE glm::glm CLI11::CLI11)
-    target_compile_options(terrain_core_tests PRIVATE /W4 /permissive- /utf-8 /EHsc)
+    terrain_enable_warnings(terrain_core_tests)
 
     add_test(NAME terrain_core COMMAND terrain_core_tests)
     add_test(NAME terrain_smoke

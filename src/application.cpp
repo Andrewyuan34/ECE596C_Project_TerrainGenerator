@@ -8,9 +8,10 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <format>
 #include <fstream>
-#include <print>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 #include <span>
 #include <utility>
 #include <vector>
@@ -64,21 +65,21 @@ void Application::WindowDeleter::operator()(GLFWwindow* window) const {
 
 int Application::run() {
     if (const auto result = initWindow(); !result) {
-        std::println(stderr, "error: {}", result.error());
+        std::cerr << "error: " << result.error() << '\n';
         return 1;
     }
     if (const auto result = loadAssets(); !result) {
-        std::println(stderr, "error: {}", result.error());
+        std::cerr << "error: " << result.error() << '\n';
         return 1;
     }
 
     if (options_.screenshot) {
         renderFrame();
         if (const auto result = saveScreenshot(*options_.screenshot); !result) {
-            std::println(stderr, "error: {}", result.error());
+            std::cerr << "error: " << result.error() << '\n';
             return 1;
         }
-        std::println("Screenshot saved to {}", options_.screenshot->string());
+        std::cout << "Screenshot saved to " << options_.screenshot->string() << '\n';
         return 0;
     }
 
@@ -88,7 +89,7 @@ int Application::run() {
 
 std::expected<void, std::string> Application::initWindow() {
     glfwSetErrorCallback([](int code, const char* message) {
-        std::println(stderr, "GLFW error {}: {}", code, message);
+        std::cerr << "GLFW error " << code << ": " << message << '\n';
     });
 
     if (glfwInit() != GLFW_TRUE)
@@ -97,6 +98,9 @@ std::expected<void, std::string> Application::initWindow() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#ifdef __APPLE__
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+#endif
     if (options_.screenshot)
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
@@ -291,8 +295,9 @@ void Application::updateWindowTitle(double now) {
         const double fps = frameCount_ / (now - lastFpsTime_);
         frameCount_  = 0;
         lastFpsTime_ = now;
-        const std::string title = std::format("Terrain Generator - FPS: {:.0f}", fps);
-        glfwSetWindowTitle(window_.get(), title.c_str());
+        std::ostringstream title;
+        title << "Terrain Generator - FPS: " << std::fixed << std::setprecision(0) << fps;
+        glfwSetWindowTitle(window_.get(), title.str().c_str());
     }
 }
 

@@ -1,4 +1,4 @@
-#include <print>
+#include <iostream>
 #include <utility>
 
 #include "application.hpp"
@@ -10,10 +10,14 @@ int main(int argc, char** argv) {
         return options.error();
 
     const auto& t = options->terrain;
-    std::println("Terrain parameters: frequency={} octaves={} amplitude={} "
-                 "persistence={} lacunarity={} seed={} width={} lod={}",
-                 t.noise.frequency, t.noise.octaves, t.noise.amplitude,
-                 t.noise.persistence, t.noise.lacunarity, t.seed, t.width, t.lod);
+    std::cout << "Terrain parameters: frequency=" << t.noise.frequency
+              << " octaves=" << t.noise.octaves
+              << " amplitude=" << t.noise.amplitude
+              << " persistence=" << t.noise.persistence
+              << " lacunarity=" << t.noise.lacunarity
+              << " seed=" << t.seed
+              << " width=" << t.width
+              << " lod=" << t.lod << '\n';
 
     tg::Application app{std::move(*options)};
     return app.run();

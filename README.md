@@ -7,11 +7,11 @@
 - 数学:GLM
 - 命令行:CLI11
 - 构建:CMake(≥ 3.28)+ Ninja,依赖全部由 **FetchContent** 拉取
-- 编译器:项目内**便携 MSVC**(无需安装 Visual Studio)
+- 编译器:MSVC、GCC 或 Clang(标准库需支持 C++23 `std::expected`)
 
 ## 环境说明(重要)
 
-本项目的整个工具链(MSVC、CMake、Ninja)和构建产物都位于项目目录内:
+Windows 便携环境可将整个工具链(MSVC、CMake、Ninja)和构建产物放在项目目录内:
 
 ```
 .toolchain/   # 便携 MSVC + CMake + Ninja(不入库,.gitignore 已排除)
@@ -19,6 +19,15 @@ build/        # CMake 构建目录,含 FetchContent 下载的第三方依赖
 ```
 
 **没有任何全局安装**。删除项目文件夹即完成彻底卸载。
+
+Linux/macOS 也可以使用系统 C++ 编译器、CMake、Ninja 和 Python。先执行
+`python -m pip install -r requirements-build.txt`,再按常规 CMake 流程构建:
+
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
 
 ### 首次重建工具链
 

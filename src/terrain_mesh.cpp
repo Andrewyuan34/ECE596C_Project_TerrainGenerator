@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <limits>
-#include <mdspan>
 
 namespace tg {
 
@@ -22,10 +21,13 @@ TerrainMesh generateTerrain(const TerrainParams& params) {
 
     const PerlinNoise noise{params.seed};
 
-    // 1) Sample the height field (raw noise space), tracked via mdspan.
-    std::vector<float> heights(static_cast<std::size_t>(gridN) * gridN);
-    auto hmap = std::mdspan<float, std::dextents<std::size_t, 2>>(
-        heights.data(), gridN, gridN);
+    // 1) Sample the height field (raw noise space). A flat vector keeps this
+    //    portable to standard libraries that do not yet ship std::mdspan.
+    const std::size_t n = static_cast<std::size_t>(gridN);
+    std::vector<float> heights(n * n);
+    const auto hmap = [&heights, n](std::size_t row, std::size_t column) -> float& {
+        return heights[row * n + column];
+    };
 
     float minH = std::numeric_limits<float>::max();
     float maxH = std::numeric_limits<float>::lowest();
@@ -37,7 +39,7 @@ TerrainMesh generateTerrain(const TerrainParams& params) {
             const double nx = static_cast<double>(x) / worldSize;
             const double nz = static_cast<double>(z) / worldSize;
             const float  h  = static_cast<float>(noise.fbm(nx, nz, 0.5, params.noise) + 1.5);
-            hmap[j, i] = h;
+            hmap(j, i) = h;
             minH = std::min(minH, h);
             maxH = std::max(maxH, h);
         }
@@ -55,11 +57,10 @@ TerrainMesh generateTerrain(const TerrainParams& params) {
 
     // 3) Keep island edges above the water level, then convert heights to
     //    world space.
-    const std::size_t n = static_cast<std::size_t>(gridN);
     for (std::size_t j = 0; j < n; ++j) {
         for (std::size_t i = 0; i < n; ++i) {
             const bool boundary = (i == 0 || j == 0 || i == n - 1 || j == n - 1);
-            float& h = hmap[j, i];
+            float& h = hmap(j, i);
             if (boundary && h < waterLevelRaw)
                 h = (waterLevelRaw - h) * 0.2f + waterLevelRaw;
             h *= scale;
@@ -73,9 +74,9 @@ TerrainMesh generateTerrain(const TerrainParams& params) {
         const std::size_t ir = (i < n - 1) ? i + 1 : i;
         const std::size_t jt = (j > 0) ? j - 1 : j;
         const std::size_t jb = (j < n - 1) ? j + 1 : j;
-        return glm::normalize(glm::vec3{hmap[j, il] - hmap[j, ir],
+        return glm::normalize(glm::vec3{hmap(j, il) - hmap(j, ir),
                                         2.0f * cell,
-                                        hmap[jt, i] - hmap[jb, i]});
+                                        hmap(jt, i) - hmap(jb, i)});
     };
 
     // 5) Terrain vertices.
@@ -84,7 +85,7 @@ TerrainMesh generateTerrain(const TerrainParams& params) {
         const float z = (-worldSize / 2 + static_cast<int>(j) * step) * kXZScale;
         for (std::size_t i = 0; i < n; ++i) {
             const float x = (-worldSize / 2 + static_cast<int>(i) * step) * kXZScale;
-            const float h = hmap[j, i];
+            const float h = hmap(j, i);
             mesh.vertices.push_back(Vertex{
                 .position = {x, h, z},
                 .normal   = gridNormal(j, i),
