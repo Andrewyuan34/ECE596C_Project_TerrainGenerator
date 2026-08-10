@@ -74,7 +74,11 @@ int Application::run() {
 
     if (options_.screenshot) {
         renderFrame();
-        saveScreenshot(*options_.screenshot);
+        if (const auto result = saveScreenshot(*options_.screenshot); !result) {
+            std::println(stderr, "error: {}", result.error());
+            return 1;
+        }
+        std::println("Screenshot saved to {}", options_.screenshot->string());
         return 0;
     }
 
@@ -288,9 +292,12 @@ void Application::updateWindowTitle(double now) {
     }
 }
 
-void Application::saveScreenshot(const std::filesystem::path& path) {
+std::expected<void, std::string>
+Application::saveScreenshot(const std::filesystem::path& path) {
     int width = 0, height = 0;
     glfwGetFramebufferSize(window_.get(), &width, &height);
+    if (width <= 0 || height <= 0)
+        return std::unexpected{"cannot capture an empty framebuffer"};
 
     const int rowSize   = width * 3;
     const int paddedRow = (rowSize + 3) & ~3;  // BMP rows are 4-byte aligned
@@ -298,6 +305,9 @@ void Application::saveScreenshot(const std::filesystem::path& path) {
     std::vector<unsigned char> raw(static_cast<std::size_t>(rowSize) * height);
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glReadPixels(0, 0, width, height, GL_BGR, GL_UNSIGNED_BYTE, raw.data());
+    if (const GLenum error = glGetError(); error != GL_NO_ERROR)
+        return std::unexpected{"OpenGL readback failed with error " +
+                               std::to_string(error)};
 
     // glReadPixels and BMP both store rows bottom-up: copy straight through.
     std::vector<unsigned char> pixels(static_cast<std::size_t>(paddedRow) * height, 0);
@@ -306,10 +316,8 @@ void Application::saveScreenshot(const std::filesystem::path& path) {
                     pixels.data() + static_cast<std::size_t>(r) * paddedRow);
 
     std::ofstream out(path, std::ios::binary);
-    if (!out) {
-        std::println(stderr, "error: cannot write screenshot to {}", path.string());
-        return;
-    }
+    if (!out)
+        return std::unexpected{"cannot write screenshot to " + path.string()};
 
     std::array<unsigned char, 54> header{};
     const auto put32 = [&header](std::size_t off, std::uint32_t v) {
@@ -337,7 +345,9 @@ void Application::saveScreenshot(const std::filesystem::path& path) {
               static_cast<std::streamsize>(header.size()));
     out.write(reinterpret_cast<const char*>(pixels.data()),
               static_cast<std::streamsize>(pixels.size()));
-    std::println("Screenshot saved to {}", path.string());
+    if (!out)
+        return std::unexpected{"failed while writing screenshot to " + path.string()};
+    return {};
 }
 
 // --- GLFW callback trampolines ----------------------------------------------

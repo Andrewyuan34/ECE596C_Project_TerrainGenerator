@@ -54,7 +54,8 @@ private:
     void renderFrame();
     void updateLight() noexcept;
     void updateWindowTitle(double now);
-    void saveScreenshot(const std::filesystem::path& path);
+    [[nodiscard]] std::expected<void, std::string>
+    saveScreenshot(const std::filesystem::path& path);
 
     static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
     static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);

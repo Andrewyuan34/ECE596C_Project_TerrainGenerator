@@ -84,3 +84,29 @@ add_custom_command(TARGET terrain_generator POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/texture" "$<TARGET_FILE_DIR:terrain_generator>/texture"
 )
+
+# ---- Tests ------------------------------------------------------------------
+include(CTest)
+if (BUILD_TESTING)
+    add_executable(terrain_core_tests
+        tests/core_tests.cpp
+        src/cli.cpp
+        src/perlin_noise.cpp
+        src/terrain_mesh.cpp
+    )
+    target_include_directories(terrain_core_tests PRIVATE src)
+    target_link_libraries(terrain_core_tests PRIVATE glm::glm CLI11::CLI11)
+    target_compile_options(terrain_core_tests PRIVATE /W4 /permissive- /utf-8 /EHsc)
+
+    add_test(NAME terrain_core COMMAND terrain_core_tests)
+    add_test(NAME terrain_smoke
+        COMMAND terrain_generator --screenshot terrain-smoke.bmp)
+    set_tests_properties(terrain_smoke PROPERTIES
+        WORKING_DIRECTORY "$<TARGET_FILE_DIR:terrain_generator>")
+
+    add_test(NAME terrain_screenshot_failure
+        COMMAND terrain_generator --screenshot missing-directory/terrain-smoke.bmp)
+    set_tests_properties(terrain_screenshot_failure PROPERTIES
+        WORKING_DIRECTORY "$<TARGET_FILE_DIR:terrain_generator>"
+        WILL_FAIL TRUE)
+endif()

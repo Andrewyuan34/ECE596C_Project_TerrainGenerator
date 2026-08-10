@@ -22,5 +22,14 @@
       "configurePreset": "release",
       "jobs": 0
     }
+  ],
+  "testPresets": [
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
   ]
 }
